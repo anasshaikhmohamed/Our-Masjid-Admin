@@ -1,0 +1,965 @@
+OUR MASJID — MASTER PRODUCTION BUILD & SUPABASE ADMIN PROMPT
+
+ROLE
+
+Act as a senior full-stack engineer, Supabase architect, mobile app engineer, Admin Panel engineer, UI/UX preservation specialist, security engineer, and deployment engineer.
+
+I am continuing the existing "Our Masjid" project from a ZIP backup in a new Replit workspace/account.
+
+IMPORTANT:
+This is an EXISTING production-oriented project.
+
+DO NOT rebuild the mobile app from scratch.
+DO NOT redesign the existing mobile UI.
+DO NOT replace the approved logo.
+DO NOT change the existing navigation.
+DO NOT remove existing demo content.
+DO NOT invent new product features.
+DO NOT weaken authentication or security to make something work.
+
+First inspect the entire ZIP/project structure and understand the existing implementation before making changes.
+
+==================================================
+1. EXISTING MOBILE APP — PRESERVE EXACTLY
+==================================================
+
+The mobile application is the approved "Our Masjid" app.
+
+Existing bottom navigation:
+
+Home
+Masjids
+Our Work
+Profile
+
+Preserve:
+
+- Existing green-and-gold visual identity
+- Existing approved Our Masjid logo exactly
+- Existing typography and visual language
+- Existing screens
+- Existing navigation
+- Existing onboarding flow
+- Existing demo login flow
+- Existing sample Masjid/project content
+- Existing donation UI
+- Existing profile UI
+- Existing saved/bookmark functionality
+- Existing notification behavior
+- Existing image layouts
+- Existing Masjid detail back button
+- Existing Our Work structure
+- Existing touch interactions
+
+Do not make unrelated UI changes.
+
+The current local/demo data must NOT be deleted.
+
+Existing local source:
+
+artifacts/mobile/lib/data.ts
+
+Existing local authentication/demo session must also remain functional until real Supabase authentication is intentionally introduced.
+
+==================================================
+2. SUPABASE — SINGLE SOURCE OF TRUTH
+==================================================
+
+Use Supabase as the backend:
+
+Supabase
+├── PostgreSQL Database
+├── Authentication
+├── Storage
+├── Row Level Security
+└── Realtime where appropriate
+
+Architecture:
+
+Mobile App
+      ↓
+   Supabase
+      ↑
+Admin Panel
+      ↑
+   Vercel
+
+The Admin Panel is a separate web application.
+
+The Admin Panel must never expose Supabase service-role credentials to the browser or mobile app.
+
+Never put service_role keys in:
+- mobile code
+- client-side Admin Panel code
+- public environment variables
+- Git repository
+
+Public/anon/publishable credentials may only be used where appropriate for client-side access protected by RLS.
+
+Use the connected official Supabase integration/MCP/database-management capability for database administration.
+
+Do NOT attempt to create tables using the mobile anon key.
+
+==================================================
+3. FIRST: INSPECT BEFORE MODIFYING
+==================================================
+
+Before making changes:
+
+1. Inspect all existing files.
+2. Inspect the mobile app architecture.
+3. Inspect package.json files.
+4. Inspect current Supabase integration.
+5. Inspect existing environment variable names.
+6. Inspect existing Admin Panel code if present.
+7. Inspect existing auth implementation.
+8. Inspect artifacts/mobile/lib/data.ts.
+9. Inspect all local image/media assets.
+10. Determine whether Supabase tables already exist.
+11. Determine whether Storage buckets already exist.
+12. Determine whether RLS policies already exist.
+
+Do not duplicate existing tables, files, or configuration.
+
+Do not delete existing working code just because a new implementation is cleaner.
+
+==================================================
+4. APPROVED DATABASE SCHEMA
+==================================================
+
+Create the following Supabase schema exactly, with proper UUIDs, timestamps, constraints, indexes, foreign keys, and RLS.
+
+All IDs:
+
+uuid PRIMARY KEY DEFAULT gen_random_uuid()
+
+All timestamps:
+
+timestamptz NOT NULL DEFAULT now()
+
+Money:
+
+numeric(14,2)
+
+-----------------------------------
+profiles
+-----------------------------------
+
+id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE
+name text NULL
+phone text NULL
+role text NOT NULL DEFAULT 'user'
+created_at timestamptz NOT NULL DEFAULT now()
+updated_at timestamptz NOT NULL DEFAULT now()
+
+Allowed roles:
+
+user
+admin
+super_admin
+
+IMPORTANT SECURITY:
+
+A normal user must NEVER be able to change their own role.
+
+Role changes must only be performed through a secure admin/super-admin workflow.
+
+-----------------------------------
+categories
+-----------------------------------
+
+id uuid PRIMARY KEY
+name text NOT NULL UNIQUE
+description text NULL
+icon text NULL
+published boolean NOT NULL DEFAULT true
+sort_order integer NOT NULL DEFAULT 0
+created_at timestamptz NOT NULL DEFAULT now()
+updated_at timestamptz NOT NULL DEFAULT now()
+
+-----------------------------------
+masjids
+-----------------------------------
+
+id uuid PRIMARY KEY
+name text NOT NULL
+location text NOT NULL
+city text NOT NULL
+description text NULL
+image_url text NULL
+target_amount numeric(14,2) NOT NULL DEFAULT 0
+raised_amount numeric(14,2) NOT NULL DEFAULT 0
+status text NOT NULL
+is_urgent boolean NOT NULL DEFAULT false
+is_featured boolean NOT NULL DEFAULT false
+category_id uuid NULL REFERENCES categories(id) ON DELETE SET NULL
+published boolean NOT NULL DEFAULT false
+created_at timestamptz NOT NULL DEFAULT now()
+updated_at timestamptz NOT NULL DEFAULT now()
+
+Allowed status:
+
+active
+completed
+hidden
+
+IMPORTANT:
+
+masjids.raised_amount is SUMMARY ONLY.
+
+The authoritative fundraising amount is:
+
+projects.raised_amount
+
+Do not allow mobile anon clients to modify fundraising totals.
+
+-----------------------------------
+masjid_media
+-----------------------------------
+
+id uuid PRIMARY KEY
+masjid_id uuid NOT NULL REFERENCES masjids(id) ON DELETE CASCADE
+media_type text NOT NULL
+file_url text NOT NULL
+sort_order integer NOT NULL DEFAULT 0
+created_at timestamptz NOT NULL DEFAULT now()
+
+media_type:
+
+image
+video
+
+-----------------------------------
+masjid_documents
+-----------------------------------
+
+id uuid PRIMARY KEY
+masjid_id uuid NOT NULL REFERENCES masjids(id) ON DELETE CASCADE
+document_type text NOT NULL
+file_url text NOT NULL
+is_private boolean NOT NULL DEFAULT true
+created_at timestamptz NOT NULL DEFAULT now()
+
+document_type:
+
+qazi_permission
+support_letter
+verification
+other
+
+-----------------------------------
+projects
+-----------------------------------
+
+id uuid PRIMARY KEY
+title text NOT NULL
+masjid_id uuid NOT NULL REFERENCES masjids(id) ON DELETE RESTRICT
+category_id uuid NULL REFERENCES categories(id) ON DELETE SET NULL
+short_description text NULL
+full_description text NULL
+target_amount numeric(14,2) NOT NULL DEFAULT 0
+raised_amount numeric(14,2) NOT NULL DEFAULT 0
+total_expense numeric(14,2) NOT NULL DEFAULT 0
+status text NOT NULL
+published boolean NOT NULL DEFAULT false
+featured boolean NOT NULL DEFAULT false
+created_at timestamptz NOT NULL DEFAULT now()
+updated_at timestamptz NOT NULL DEFAULT now()
+
+Allowed status:
+
+draft
+ongoing
+completed
+hidden
+
+-----------------------------------
+project_media
+-----------------------------------
+
+id uuid PRIMARY KEY
+project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE
+media_type text NOT NULL
+stage text NOT NULL
+file_url text NOT NULL
+caption text NULL
+sort_order integer NOT NULL DEFAULT 0
+created_at timestamptz NOT NULL DEFAULT now()
+
+media_type:
+
+image
+video
+
+stage:
+
+before
+progress
+after
+
+-----------------------------------
+project_expenses
+-----------------------------------
+
+id uuid PRIMARY KEY
+project_id uuid NOT NULL REFERENCES projects(id) ON DELETE RESTRICT
+title text NOT NULL
+description text NULL
+amount numeric(14,2) NOT NULL CHECK (amount >= 0)
+expense_date date NULL
+created_at timestamptz NOT NULL DEFAULT now()
+
+-----------------------------------
+expense_documents
+-----------------------------------
+
+id uuid PRIMARY KEY
+expense_id uuid NOT NULL REFERENCES project_expenses(id) ON DELETE CASCADE
+document_type text NOT NULL
+file_url text NOT NULL
+is_private boolean NOT NULL DEFAULT true
+created_at timestamptz NOT NULL DEFAULT now()
+
+-----------------------------------
+project_documents
+-----------------------------------
+
+id uuid PRIMARY KEY
+project_id uuid NOT NULL REFERENCES projects(id) ON DELETE RESTRICT
+document_type text NOT NULL
+file_url text NOT NULL
+is_private boolean NOT NULL DEFAULT true
+created_at timestamptz NOT NULL DEFAULT now()
+
+document_type:
+
+qazi_permission
+support_letter
+verification
+other
+
+-----------------------------------
+donation_intents
+-----------------------------------
+
+id uuid PRIMARY KEY
+user_id uuid NULL REFERENCES profiles(id) ON DELETE SET NULL
+masjid_id uuid NOT NULL REFERENCES masjids(id) ON DELETE RESTRICT
+project_id uuid NULL REFERENCES projects(id) ON DELETE SET NULL
+amount numeric(14,2) NOT NULL CHECK (amount > 0)
+donor_name text NOT NULL
+message text NULL
+status text NOT NULL DEFAULT 'initiated'
+payment_reference text NULL
+created_at timestamptz NOT NULL DEFAULT now()
+
+Allowed status:
+
+initiated
+pending
+completed
+failed
+cancelled
+
+No fake payment processing.
+
+Mobile anon users must NOT:
+- mark donations completed
+- modify donation status
+- modify raised_amount
+- create fake payment references
+
+-----------------------------------
+home_slides
+-----------------------------------
+
+id uuid PRIMARY KEY
+title text NOT NULL
+subtitle text NULL
+image_url text NULL
+action_type text NULL
+action_id text NULL
+sort_order integer NOT NULL DEFAULT 0
+published boolean NOT NULL DEFAULT false
+created_at timestamptz NOT NULL DEFAULT now()
+updated_at timestamptz NOT NULL DEFAULT now()
+
+-----------------------------------
+app_settings
+-----------------------------------
+
+id uuid PRIMARY KEY
+key text NOT NULL UNIQUE
+value jsonb NOT NULL
+updated_at timestamptz NOT NULL DEFAULT now()
+
+Admin/super-admin only.
+
+This table controls dynamic content/settings only.
+
+It must NOT be used to inject arbitrary UI code.
+
+-----------------------------------
+audit_logs
+-----------------------------------
+
+id uuid PRIMARY KEY
+admin_id uuid NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT
+action text NOT NULL
+entity_type text NOT NULL
+entity_id uuid NULL
+details jsonb NOT NULL DEFAULT '{}'
+created_at timestamptz NOT NULL DEFAULT now()
+
+Audit logs must be append-only.
+
+==================================================
+5. INDEXES
+==================================================
+
+Create appropriate indexes including:
+
+profiles(role)
+
+categories(published, sort_order)
+
+masjids(published, status)
+masjids(category_id, published)
+masjids(city, published)
+masjids(is_urgent, published)
+masjids(is_featured, published)
+
+masjid_media(masjid_id, sort_order)
+
+masjid_documents(masjid_id, is_private, created_at)
+
+projects(masjid_id, published, status)
+projects(category_id, published)
+projects(featured, published)
+
+project_media(project_id, stage, sort_order)
+
+project_expenses(project_id, expense_date)
+
+expense_documents(expense_id)
+
+project_documents(project_id, is_private)
+
+donation_intents(user_id, created_at DESC)
+donation_intents(masjid_id, status)
+donation_intents(project_id, status)
+
+home_slides(published, sort_order)
+
+audit_logs(admin_id, created_at DESC)
+audit_logs(entity_type, entity_id, created_at DESC)
+
+==================================================
+6. RLS SECURITY
+==================================================
+
+Enable RLS on all relevant application tables.
+
+PUBLIC READ:
+
+Anonymous/authenticated users can read:
+
+- published categories
+- published, non-hidden Masjids
+- published, non-hidden projects
+- public Masjid media
+- public project media
+- published home slides
+- public Masjid documents where is_private=false
+- public project documents where is_private=false
+- public project expense information
+
+NORMAL AUTHENTICATED USER:
+
+Can:
+- read own profile
+- create own donation intent with status=initiated
+- read own donation intents
+
+Cannot:
+- change role
+- manage content
+- publish content
+- hide content
+- change fundraising totals
+- change donation status
+- access private documents
+- access audit logs
+- access app settings
+- perform admin operations
+
+ADMIN:
+
+Can manage normal application content according to role.
+
+SUPER_ADMIN:
+
+Can:
+- manage admin roles
+- access private documents
+- manage settings
+- access audit logs
+- manage sensitive admin data
+- manage Storage objects
+
+IMPORTANT:
+
+Prevent RLS recursion and privilege escalation.
+
+Use a secure SECURITY DEFINER role-checking helper/function where appropriate.
+
+Do not create a policy that allows a user to promote themselves to admin or super_admin.
+
+Audit log creation should be trusted/server-side and not freely client-controlled.
+
+==================================================
+7. STORAGE
+==================================================
+
+Create:
+
+public-masjid-media
+public-project-media
+public-home-media
+private-documents
+
+Public buckets:
+- public read
+- only admin/super_admin upload/update/delete
+
+Private bucket:
+- no anonymous read
+- authorized admin/super_admin access
+- signed URLs or secure authorized access
+
+Database fields must store stable Storage object paths.
+
+Do not store expiring signed URLs in database.
+
+Storage policies must be configured separately from database RLS.
+
+==================================================
+8. ADMIN AUTHENTICATION — IMPORTANT
+==================================================
+
+The Admin Panel must use Supabase Auth.
+
+Only users whose Supabase profile has:
+
+role = admin
+OR
+role = super_admin
+
+may enter the Admin Panel.
+
+The current login test email is:
+
+ansentech61@gmail.com
+
+If this Supabase Auth user exists but receives HTTP 401 because there is no matching admin/super_admin profile, implement the correct secure bootstrap procedure.
+
+DO NOT bypass the role check.
+
+DO NOT simply remove the authentication gate.
+
+DO NOT hardcode this email as an administrator.
+
+Instead:
+
+1. Check whether the Supabase Auth user exists.
+2. Check whether a profiles row exists for that auth user.
+3. If missing, create the profile through a secure administrative/bootstrap mechanism.
+4. Set the role to admin only through trusted database administration.
+5. Verify that login works.
+6. Ensure normal users still cannot access the Admin Panel.
+
+If a first super-admin bootstrap is required, perform it through the connected Supabase database-management/MCP integration, not through the browser's anon key.
+
+Never expose service-role credentials.
+
+==================================================
+9. ADMIN PANEL
+==================================================
+
+Build/complete a separate responsive Admin Panel.
+
+The Admin Panel must be separate from the mobile UI.
+
+Use the existing green-and-gold Our Masjid identity where appropriate, but do not redesign the mobile app.
+
+Admin sections:
+
+Dashboard
+Masjids
+Projects / Our Work
+Categories
+Home Slides
+Donations
+Documents
+Expenses
+Settings
+Audit Logs
+Admin/Profile
+
+==================================================
+10. ADMIN DASHBOARD
+==================================================
+
+Dashboard must use REAL Supabase data.
+
+Show useful statistics such as:
+
+- Total Masjids
+- Active Masjids
+- Urgent Masjids
+- Active Projects
+- Completed Projects
+- Total project target
+- Total project raised
+- Total expenses
+- Donation intents
+- Recent activity
+
+Do not use fake numbers once Supabase data is connected.
+
+==================================================
+11. MASJID MANAGEMENT
+==================================================
+
+Admin can:
+
+- create Masjid
+- edit Masjid
+- publish/unpublish
+- mark urgent
+- mark featured
+- set active/completed/hidden
+- set category
+- upload cover image
+- manage gallery
+- manage documents
+- add Qazi permission
+- add support letter
+- add verification
+- manage public/private document visibility
+
+Masjid detail must support:
+
+photo
+name
+location
+description
+fundraising information
+urgent status
+documents
+gallery
+related projects
+
+==================================================
+12. PROJECT / OUR WORK MANAGEMENT
+==================================================
+
+Admin can:
+
+- create project
+- assign Masjid
+- assign category
+- edit title
+- edit descriptions
+- set target
+- set raised
+- set total expense
+- draft/publish/hide
+- mark featured
+- set ongoing/completed
+
+Media:
+
+Before
+Progress
+After
+Video
+
+Admin must be able to upload multiple images/videos and control ordering.
+
+Project details must support:
+
+- full description
+- work completed
+- before photos
+- progress photos
+- after photos
+- video
+- expenses
+- individual bills/invoices
+- Qazi permission/documentation
+- verification documents
+- transparency information
+
+Private documents must remain protected.
+
+==================================================
+13. HOME SCREEN CMS
+==================================================
+
+Admin must control Home content through Supabase.
+
+Home slides:
+
+- title
+- subtitle
+- image
+- sort order
+- published/unpublished
+- action type
+- action target
+
+Urgent Support Needed section must show only:
+
+is_urgent = true
+AND published = true
+AND status != hidden
+
+Do not mix ordinary active Masjids into the urgent section.
+
+==================================================
+14. MOBILE APP DATA MIGRATION
+==================================================
+
+IMPORTANT:
+
+DO NOT delete the existing demo Masjid/project data.
+
+Existing local source:
+
+artifacts/mobile/lib/data.ts
+
+Later migrate the existing demo data into Supabase in a controlled way.
+
+For each existing local fundraising record:
+
+1. Identify/create the correct Masjid.
+2. Create the related Project.
+3. Reuse the same Masjid when multiple projects belong to the same Masjid.
+4. Map category.
+5. Map target to projects.target_amount.
+6. Map raised to projects.raised_amount.
+7. Map description/problem into appropriate description fields.
+8. Map Active/Urgent appropriately.
+9. Upload local images to Supabase Storage.
+10. Preserve image associations.
+
+Do NOT deduplicate only by Masjid name.
+
+Completed projects:
+
+status = completed
+
+total_expense = actual verified amount only.
+
+Before/after media must be mapped correctly.
+
+DO NOT treat existing sample/hardcoded expense examples as verified financial records unless explicitly confirmed.
+
+Existing local donation intents should NOT be migrated until reviewed.
+
+==================================================
+15. MOBILE APP SUPABASE INTEGRATION
+==================================================
+
+After the database foundation and migration are verified:
+
+Gradually replace hardcoded public content with Supabase data.
+
+Do this incrementally.
+
+Do NOT break the current UI.
+
+The mobile app should eventually read:
+
+Home slides
+Masjids
+Urgent Masjids
+Projects
+Project media
+Public documents
+Categories
+
+from Supabase.
+
+Keep the existing visual design.
+
+If Supabase is temporarily unavailable, handle the error gracefully.
+
+==================================================
+16. FUNDRAISING RULE
+==================================================
+
+Authoritative:
+
+projects.target_amount
+projects.raised_amount
+
+Example:
+
+Masjid
+  ↓
+Roof Repair Project
+  ↓
+Target ₹2,00,000
+Raised ₹85,000
+
+masjids.raised_amount is summary-only.
+
+Never allow mobile anon users to directly modify either fundraising total.
+
+Future real payment/webhook architecture may update these values securely.
+
+Do not build a fake payment gateway.
+
+The long-term donation concept is:
+
+Donor selects a Masjid/project
+↓
+Donation/payment is directed to the appropriate Masjid
+↓
+Our Masjid acts as the trusted platform/zariya
+
+Do not invent payment credentials or payment processing.
+
+==================================================
+17. DOCUMENT PRIVACY
+==================================================
+
+Qazi permissions/support/verification documents may be public only when explicitly marked public.
+
+Sensitive bills and private documents default to private.
+
+Private documents must never become publicly accessible simply because someone knows the file URL.
+
+==================================================
+18. AUDIT LOGGING
+==================================================
+
+Record important admin actions such as:
+
+- create
+- update
+- publish
+- unpublish
+- delete/archive
+- role change
+- document visibility change
+- project fundraising update
+- expense update
+- settings update
+
+Audit logs must be append-only.
+
+==================================================
+19. DELETE / ARCHIVE SAFETY
+==================================================
+
+Do not casually delete financial records.
+
+Prefer archive/hidden states for:
+
+- completed projects
+- donation records
+- expenses
+- important documents
+
+Respect the approved foreign-key relationships.
+
+==================================================
+20. VERCEL
+==================================================
+
+Admin Panel should be deployable on Vercel.
+
+Use environment variables for client-side Supabase configuration.
+
+Never expose service-role credentials.
+
+Prepare production deployment configuration.
+
+==================================================
+21. TESTING
+==================================================
+
+Before declaring completion, test:
+
+1. Supabase connectivity.
+2. Database tables.
+3. Constraints.
+4. Foreign keys.
+5. RLS.
+6. Storage buckets.
+7. Storage policies.
+8. Admin login.
+9. Normal user access denial.
+10. Admin content CRUD.
+11. Publishing/unpublishing.
+12. Urgent Masjid filtering.
+13. Project CRUD.
+14. Media upload.
+15. Private document protection.
+16. Donation intent creation.
+17. Fundraising protection.
+18. Audit logging.
+19. Mobile public data retrieval.
+20. Existing mobile navigation/UI.
+21. Existing demo data preservation.
+22. Production build/typecheck.
+
+Do not claim something is working unless it has actually been verified.
+
+==================================================
+22. VERY IMPORTANT WORKFLOW
+==================================================
+
+Do NOT blindly execute everything immediately.
+
+First:
+
+A. Inspect the existing project.
+B. Inspect current Supabase connection.
+C. Inspect whether database objects already exist.
+D. Inspect current Admin Panel.
+E. Inspect current auth.
+F. Prepare the required migration/configuration plan.
+
+Then implement the approved foundation safely.
+
+After implementation, verify everything.
+
+Do not ask me to manually recreate all existing Masjids.
+
+Do not delete existing demo data.
+
+Do not make me repeatedly send separate prompts for each feature.
+
+Use this master specification as the source of truth.
+
+If an existing implementation conflicts with this specification, preserve working mobile UI while correcting backend architecture/security.
+
+At the end, provide a concise report containing:
+
+1. What was already present.
+2. What was changed.
+3. Database tables created.
+4. Storage buckets created.
+5. RLS policies created.
+6. Admin authentication status.
+7. Admin account/role status.
+8. Demo data migration status.
+9. Mobile integration status.
+10. Vercel deployment status.
+11. Any remaining issue that genuinely requires my action.
+
+Never claim completion for an item that was not actually verified.

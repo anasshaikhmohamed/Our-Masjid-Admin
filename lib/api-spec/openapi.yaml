@@ -1,0 +1,125 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: content
+    description: Published Our Masjid content
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /content/projects:
+    get:
+      operationId: listPublishedProjects
+      tags: [content]
+      summary: List published projects
+      responses:
+        "200":
+          description: Published projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicProject"
+        "503":
+          description: Content service unavailable
+  /content/masjids:
+    get:
+      operationId: listPublishedMasjids
+      tags: [content]
+      summary: List published Masjids
+      responses:
+        "200":
+          description: Published Masjids
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicMasjid"
+        "503":
+          description: Content service unavailable
+  /content/home-slides:
+    get:
+      operationId: listPublishedHomeSlides
+      tags: [content]
+      summary: List published home slides
+      responses:
+        "200":
+          description: Published home slides
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HomeSlide"
+        "503":
+          description: Content service unavailable
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    PublicProject:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        short_description: { type: string, nullable: true }
+        full_description: { type: string, nullable: true }
+        target_amount: { type: number }
+        raised_amount: { type: number }
+        status: { type: string }
+        featured: { type: boolean }
+        category:
+          nullable: true
+          type: object
+          properties:
+            name: { type: string }
+      required: [id, title, target_amount, raised_amount, status, featured]
+    PublicMasjid:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        location: { type: string }
+        city: { type: string }
+        description: { type: string, nullable: true }
+        image_url: { type: string, nullable: true }
+        is_urgent: { type: boolean }
+        is_featured: { type: boolean }
+      required: [id, name, location, city, is_urgent, is_featured]
+    HomeSlide:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        subtitle: { type: string, nullable: true }
+        image_url: { type: string, nullable: true }
+        action_type: { type: string, nullable: true }
+        action_id: { type: string, nullable: true }
+      required: [id, title]
+
