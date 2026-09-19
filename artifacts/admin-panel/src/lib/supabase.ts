@@ -51,6 +51,15 @@ export function publicStorageUrl(bucket: string, path: string) {
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 
+export async function deletePublicMedia(
+  bucket: 'public-masjid-media' | 'public-project-media' | 'public-home-media',
+  path: string,
+) {
+  if (!supabase) throw new Error('Supabase is not configured for the admin panel.');
+  const { error } = await supabase.storage.from(bucket).remove([path]);
+  if (error) throw error;
+}
+
 export async function uploadPublicMedia(
   bucket: 'public-masjid-media' | 'public-project-media' | 'public-home-media',
   file: File,
