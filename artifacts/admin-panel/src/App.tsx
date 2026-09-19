@@ -32,6 +32,7 @@ import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter
 import { ErrorBoundary } from '@/components/error-boundary';
 import NotFound from '@/pages/not-found';
 import {
+  deletePublicMedia,
   getAdminProfile,
   publicStorageUrl,
   recordAudit,
@@ -66,6 +67,17 @@ type Masjid = {
   category_id: string | null;
   published: boolean;
   category?: { name: string } | null;
+};
+
+type ProjectMedia = {
+  id: string;
+  project_id: string;
+  media_type: 'image' | 'video';
+  stage: 'before' | 'progress' | 'after';
+  file_url: string;
+  caption: string | null;
+  sort_order: number;
+  created_at: string;
 };
 
 type Project = {
@@ -517,6 +529,102 @@ function MasjidRow({ masjid, onEdit, onArchive }: { masjid: Masjid; onEdit: () =
   return <div className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1.4fr_.8fr_.55fr_.65fr_.7fr] md:items-center md:gap-4"><div className="min-w-0"><p className="truncate text-sm font-semibold">{masjid.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{masjid.location} · {masjid.city}</p></div><div><span className={cn('rounded-full px-2 py-1 font-mono-ui text-[9px] uppercase tracking-wider', masjid.status === 'active' ? 'bg-secondary text-primary' : 'bg-muted text-muted-foreground')}>{masjid.status}</span></div><div className="flex gap-1">{masjid.is_urgent && <span className="rounded-full bg-destructive/10 px-2 py-1 font-mono-ui text-[9px] uppercase text-destructive">Urgent</span>}{masjid.is_featured && <span className="rounded-full bg-accent/20 px-2 py-1 font-mono-ui text-[9px] uppercase text-[hsl(38_56%_40%)]">Featured</span>}</div><span className={cn('text-xs', masjid.published ? 'text-emerald-700' : 'text-muted-foreground')}>{masjid.published ? 'Published' : 'Draft'}</span><div className="flex gap-1 md:justify-end"><button onClick={onEdit} className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit Masjid"><Pencil size={15} /></button><button onClick={onArchive} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" aria-label="Archive Masjid"><Archive size={15} /></button></div></div>;
 }
 
+function ProjectMediaManager({ projectId, adminId }: { projectId: string; adminId: string }) {
+  const [media, setMedia] = useState<ProjectMedia[]>([]);
+  const [files, setFiles] = useState<Record<ProjectMedia['stage'], File[]>>({ before: [], progress: [], after: [] });
+  const [busyStage, setBusyStage] = useState<ProjectMedia['stage'] | null>(null);
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    if (!supabase) return;
+    const result = await supabase.from('project_media').select('*').eq('project_id', projectId).order('stage').order('sort_order');
+    if (result.error) setError(result.error.message);
+    else setMedia((result.data ?? []) as ProjectMedia[]);
+  };
+
+  useEffect(() => { void load(); }, [projectId]);
+
+  const chooseFiles = (stage: ProjectMedia['stage'], selected: FileList | null) => {
+    setFiles((current) => ({ ...current, [stage]: selected ? Array.from(selected) : [] }));
+  };
+
+  const uploadStage = async (stage: ProjectMedia['stage']) => {
+    if (!supabase || !files[stage].length) return;
+    setBusyStage(stage);
+    setError('');
+    try {
+      const existingCount = media.filter((item) => item.stage === stage).length;
+      for (const [index, file] of files[stage].entries()) {
+        if (!file.type.startsWith('image/')) throw new Error('Only image files are supported for project media.');
+        const uploaded = await uploadPublicMedia('public-project-media', file, `${projectId}/${stage}`);
+        const result = await supabase.from('project_media').insert({
+          project_id: projectId,
+          media_type: 'image',
+          stage,
+          file_url: uploaded.url,
+          sort_order: existingCount + index,
+        }).select('id').single();
+        if (result.error) {
+          await deletePublicMedia('public-project-media', uploaded.path).catch(() => undefined);
+          throw result.error;
+        }
+      }
+      await recordAudit(adminId, 'upload', 'project_media', projectId, { stage, count: files[stage].length });
+      setFiles((current) => ({ ...current, [stage]: [] }));
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to upload project media.');
+    } finally {
+      setBusyStage(null);
+    }
+  };
+
+  const removeMedia = async (item: ProjectMedia) => {
+    if (!supabase) return;
+    if (!window.confirm('Delete this project media? This cannot be undone.')) return;
+    setError('');
+    try {
+      const marker = '/storage/v1/object/public/public-project-media/';
+      const path = item.file_url.includes(marker) ? decodeURIComponent(item.file_url.split(marker)[1]) : '';
+      if (path) await deletePublicMedia('public-project-media', path);
+      const result = await supabase.from('project_media').delete().eq('id', item.id);
+      if (result.error) throw result.error;
+      await recordAudit(adminId, 'delete', 'project_media', item.id, { project_id: projectId, stage: item.stage });
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to delete project media.');
+    }
+  };
+
+  const stageLabels: Record<ProjectMedia['stage'], string> = { before: 'Before', progress: 'Progress', after: 'After' };
+
+  return <div className="space-y-5 rounded-xl border border-border bg-muted/20 p-4">
+    <div>
+      <p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Project Media</p>
+      <h3 className="mt-1 font-display text-lg font-semibold">Before / Progress / After</h3>
+      <p className="mt-1 text-xs text-muted-foreground">Upload multiple project photos. These are stored in the public project-media bucket.</p>
+    </div>
+    {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+    <div className="grid gap-4 lg:grid-cols-3">
+      {(Object.keys(stageLabels) as ProjectMedia['stage'][]).map((stage) => {
+        const stageMedia = media.filter((item) => item.stage === stage);
+        return <div key={stage} className="rounded-lg border border-border bg-card p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div><p className="text-sm font-semibold">{stageLabels[stage]}</p><p className="text-[11px] text-muted-foreground">{stageMedia.length} photo{stageMedia.length === 1 ? '' : 's'}</p></div>
+            <label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted">
+              <span className="flex items-center gap-1.5"><Upload size={14} /> Choose</span>
+              <input type="file" accept="image/*" multiple className="hidden" onChange={(event) => chooseFiles(stage, event.target.files)} />
+            </label>
+          </div>
+          {files[stage].length > 0 && <div className="mt-3 rounded-lg bg-secondary/60 p-2 text-xs"><p className="font-semibold">{files[stage].length} new photo{files[stage].length === 1 ? '' : 's'} selected</p><button type="button" onClick={() => void uploadStage(stage)} disabled={busyStage !== null} className="mt-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">{busyStage === stage ? 'Uploading…' : 'Upload photos'}</button></div>}
+          {stageMedia.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2">{stageMedia.map((item) => <div key={item.id} className="group relative overflow-hidden rounded-lg border border-border bg-muted"><img src={item.file_url} alt={`${stageLabels[stage]} project media`} className="aspect-square w-full object-cover" /><button type="button" onClick={() => void removeMedia(item)} className="absolute right-1.5 top-1.5 rounded-md bg-black/70 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100" aria-label="Delete project media"><X size={13} /></button></div>)}</div>}
+          {!stageMedia.length && !files[stage].length && <p className="mt-4 rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">No photos yet.</p>}
+        </div>;
+      })}
+    </div>
+  </div>;
+}
+
 function ProjectForm({ initial, categories, masjids, onDone, onCancel, adminId }: { initial?: Project; categories: Category[]; masjids: Masjid[]; onDone: () => void; onCancel: () => void; adminId: string }) {
   const [form, setForm] = useState({ title: initial?.title ?? '', masjid_id: initial?.masjid_id ?? masjids[0]?.id ?? '', category_id: initial?.category_id ?? '', short_description: initial?.short_description ?? '', full_description: initial?.full_description ?? '', target_amount: String(initial?.target_amount ?? 0), raised_amount: String(initial?.raised_amount ?? 0), total_expense: String(initial?.total_expense ?? 0), status: initial?.status ?? 'draft', published: initial?.published ?? false, featured: initial?.featured ?? false });
   const [busy, setBusy] = useState(false);
@@ -532,7 +640,7 @@ function ProjectForm({ initial, categories, masjids, onDone, onCancel, adminId }
       onDone();
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save project.'); } finally { setBusy(false); }
   };
-  return <form onSubmit={submit} className="space-y-4">{error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}<div className="grid gap-4 sm:grid-cols-2"><Input label="Title" value={form.title} onChange={(value) => setForm({ ...form, title: value })} required /><Select label="Masjid" value={form.masjid_id} onChange={(value) => setForm({ ...form, masjid_id: value })} options={masjids.map((masjid) => ({ value: masjid.id, label: masjid.name }))} /><Select label="Category" value={form.category_id} onChange={(value) => setForm({ ...form, category_id: value })} options={[{ value: '', label: 'No category' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><Select label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value as Project['status'] })} options={[{ value: 'draft', label: 'Draft' }, { value: 'ongoing', label: 'Ongoing' }, { value: 'completed', label: 'Completed' }, { value: 'hidden', label: 'Hidden' }]} /><Input label="Target amount" value={form.target_amount} onChange={(value) => setForm({ ...form, target_amount: value })} type="number" min="0" step="0.01" /><Input label="Raised amount (verified only)" value={form.raised_amount} onChange={(value) => setForm({ ...form, raised_amount: value })} type="number" min="0" step="0.01" /><Input label="Total expense (verified only)" value={form.total_expense} onChange={(value) => setForm({ ...form, total_expense: value })} type="number" min="0" step="0.01" /></div><Textarea label="Short description" value={form.short_description} onChange={(value) => setForm({ ...form, short_description: value })} /><Textarea label="Full description / work completed" value={form.full_description} onChange={(value) => setForm({ ...form, full_description: value })} rows={5} /><div className="grid gap-2 sm:grid-cols-2"><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><Toggle label="Featured" checked={form.featured} onChange={(checked) => setForm({ ...form, featured: checked })} /></div><FormActions busy={busy} onCancel={onCancel} /></form>;
+  return <form onSubmit={submit} className="space-y-4">{error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}<div className="grid gap-4 sm:grid-cols-2"><Input label="Title" value={form.title} onChange={(value) => setForm({ ...form, title: value })} required /><Select label="Masjid" value={form.masjid_id} onChange={(value) => setForm({ ...form, masjid_id: value })} options={masjids.map((masjid) => ({ value: masjid.id, label: masjid.name }))} /><Select label="Category" value={form.category_id} onChange={(value) => setForm({ ...form, category_id: value })} options={[{ value: '', label: 'No category' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><Select label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value as Project['status'] })} options={[{ value: 'draft', label: 'Draft' }, { value: 'ongoing', label: 'Ongoing' }, { value: 'completed', label: 'Completed' }, { value: 'hidden', label: 'Hidden' }]} /><Input label="Target amount" value={form.target_amount} onChange={(value) => setForm({ ...form, target_amount: value })} type="number" min="0" step="0.01" /><Input label="Raised amount (verified only)" value={form.raised_amount} onChange={(value) => setForm({ ...form, raised_amount: value })} type="number" min="0" step="0.01" /><Input label="Total expense (verified only)" value={form.total_expense} onChange={(value) => setForm({ ...form, total_expense: value })} type="number" min="0" step="0.01" /></div><Textarea label="Short description" value={form.short_description} onChange={(value) => setForm({ ...form, short_description: value })} /><Textarea label="Full description / work completed" value={form.full_description} onChange={(value) => setForm({ ...form, full_description: value })} rows={5} /><div className="grid gap-2 sm:grid-cols-2"><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><Toggle label="Featured" checked={form.featured} onChange={(checked) => setForm({ ...form, featured: checked })} /></div>{initial?.id && <ProjectMediaManager projectId={initial.id} adminId={adminId} />}<FormActions busy={busy} onCancel={onCancel} /></form>;
 }
 
 function ProjectsPage() {
