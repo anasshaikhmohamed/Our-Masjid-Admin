@@ -6,12 +6,14 @@ import {
   StyleSheet,
   Text,
   View,
+  type ImageSourcePropType,
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '@/constants/colors';
 import { formatINR, progressFor, Project } from '@/lib/data';
 import { FramedImage } from '@/components/FramedImage';
+import { usePublishedHomeSlides } from '@/lib/content';
 
 export function AppHeader({
   title = 'Our Masjid',
@@ -70,26 +72,40 @@ export function Pill({
 }
 
 export function HeroCarousel() {
-  const slides = [
+  const { data: remoteSlides } = usePublishedHomeSlides();
+
+  const fallbackSlides = [
     {
       image: require('@/assets/images/masjid-hero.jpg'),
-      eyebrow: 'Serving Humanity',
-      title: 'Serving humanity\nwith sincerity.',
-      copy: 'Every masjid has a story. Help us write\na better chapter.',
+      eyebrow: 'Our Masjid',
+      title: 'Future For You',
+      copy: 'Support your masjid and help build a better future together.',
     },
     {
       image: require('@/assets/images/masjid-exterior.jpg'),
-      eyebrow: 'Verified Projects',
-      title: 'Support spaces\nfor everyone.',
-      copy: 'See exactly where your support creates a difference.',
+      eyebrow: 'Our Masjid',
+      title: 'Our Masjid',
+      copy: 'Support spaces that serve the community.',
     },
     {
       image: require('@/assets/images/masjid-interior.jpg'),
-      eyebrow: 'Built on Trust',
-      title: 'Transparency\nat every step.',
-      copy: 'Follow the work from the first brick to completion.',
+      eyebrow: 'Our Masjid',
+      title: 'Support Your Masjid',
+      copy: 'Follow the work with clarity and transparency.',
     },
   ];
+
+  const slides = remoteSlides?.length
+    ? remoteSlides.map((slide) => ({
+        image: slide.image_url
+          ? ({ uri: slide.image_url } as ImageSourcePropType)
+          : require('@/assets/images/masjid-hero.jpg'),
+        eyebrow: 'Our Masjid',
+        title: slide.title,
+        copy: slide.subtitle ?? 'Support your masjid and help build a better future together.',
+      }))
+    : fallbackSlides;
+
   return (
     <View style={styles.heroWrap}>
       <ScrollView
@@ -100,7 +116,7 @@ export function HeroCarousel() {
         contentContainerStyle={styles.heroScroll}
       >
         {slides.map((slide, index) => (
-          <View style={styles.heroSlide} key={slide.title}>
+          <View style={styles.heroSlide} key={`${slide.title}-${index}`}>
             <FramedImage source={slide.image} style={styles.heroImage} />
             <View style={styles.heroShade} />
             <View style={styles.heroCopy}>

@@ -1,235 +1,164 @@
-import { useQuery } from '@tanstack/react-query';
-import type { ImageSourcePropType } from 'react-native';
-import {
-  completedProjects,
-  projects as localProjects,
-  type Project,
-} from '@/lib/data';
-import { supabase } from '@/lib/supabase';
+import React from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import colors from '@/constants/colors';
+import { formatINR } from '@/lib/data';
+import { usePublishedProject } from '@/lib/content';
+import { Pill } from '@/components/Ui';
+import { FramedImage } from '@/components/FramedImage';
 
-type PublicProjectRow = {
-  id: string;
-  title: string;
-  short_description: string | null;
-  full_description: string | null;
-  target_amount: number | string;
-  raised_amount: number | string;
-  status: 'draft' | 'ongoing' | 'completed' | 'hidden';
-  featured: boolean;
-  category: { name: string } | null;
-  masjid: {
-    name: string;
-    location: string;
-    city: string;
-    is_urgent: boolean;
-    image_url: string | null;
-  } | null;
-};
+export default function WorkDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
+  const { project, isLoading } = usePublishedProject(id);
 
-type PublicProjectMediaRow = {
-  id: string;
-  project_id: string;
-  media_type: 'image' | 'video';
-  stage: 'before' | 'progress' | 'after';
-  file_url: string;
-  caption: string | null;
-  sort_order: number;
-};
-
-export type ProjectMediaItem = PublicProjectMediaRow & {
-  uri: string;
-};
-
-const publicProjectMediaUrl = (fileUrl: string) => {
-  if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
-  const base = supabase?.supabaseUrl ?? '';
-  return `${base}/storage/v1/object/public/public-project-media/${fileUrl.replace(/^\/+/, '')}`;
-};
-
-type PublicSlideRow = {
-  id: string;
-  title: string;
-  subtitle: string | null;
-  image_url: string | null;
-  action_type: string | null;
-  action_id: string | null;
-};
-
-export type ContentSource = 'demo' | 'supabase';
-
-export type PublishedProjectsResult = {
-  projects: Project[];
-  source: ContentSource;
-};
-
-const localImageFor = (id: string): ImageSourcePropType | undefined =>
-  localProjects.find((project) => project.id === id)?.image;
-
-function toProject(row: PublicProjectRow): Project {
-  const localMatch = localProjects.find((project) => project.id === row.id);
-  const target = Number(row.target_amount);
-  const raised = Number(row.raised_amount);
-
-  return {
-    id: row.id,
-    name: row.title,
-    location: row.masjid?.location ?? row.masjid?.city ?? 'Community location',
-    category: row.category?.name ?? 'Community support',
-    status: row.masjid?.is_urgent
-      ? 'Urgent'
-      : row.status === 'completed'
-        ? 'Completed'
-        : 'Active',
-    description: row.short_description ?? row.full_description ?? '',
-    problem: row.full_description ?? row.short_description ?? '',
-    target,
-    raised,
-    image: row.masjid?.image_url
-      ? { uri: row.masjid.image_url }
-      : localImageFor(row.id) ?? localProjects[0].image,
-    verification: 'Published by Our Masjid',
-  };
-}
-
-async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
-  if (!supabase) {
-    return { projects: localProjects, source: 'demo' };
+  if (isLoading && !project) {
+    return (
+      <View style={styles.loadingScreen}>
+        <Text style={styles.loadingText}>Loading project...</Text>
+      </View>
+    );
   }
 
-  const { data, error } = await supabase
-    .from('projects')
-    .select(
-      'id,title,short_description,full_description,target_amount,raised_amount,status,featured,category:categories(name),masjid:masjids(name,location,city,is_urgent,image_url)',
-    )
-    .eq('published', true)
-    .neq('status', 'hidden')
-    .order('featured', { ascending: false })
-    .order('created_at', { ascending: false });
+  const image = project.image;
 
-  if (error) throw error;
+  return (
+    <View style={styles.screen}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
+          >
+            <Feather name="arrow-left" size={20} color={colors.light.foreground} />
+          </Pressable>
+          <Text style={styles.topTitle}>Project detail</Text>
+          <View style={{ width: 44 }} />
+        </View>
 
-  return {
-    projects: ((data ?? []) as unknown as PublicProjectRow[]).map(toProject),
-    source: 'supabase',
-  };
+        <View style={styles.headerCard}>
+          <View style={styles.headerImage}>
+            <FramedImage source={image} style={styles.coverImage} />
+          </View>
+          <View style={styles.headerBody}>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>{project.name}</Text>
+              <Pill>Completed</Pill>
+            </View>
+            <Text style={styles.meta}>
+              <Feather name="map-pin" size={12} color={colors.light.mutedForeground} />{' '}
+              {project.location}  ·  {project.category}
+            </Text>
+            <Text style={styles.description}>{project.description}</Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Project gallery</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gallery}>
+            {[image, image].map((source, index) => (
+              <View key={index} style={styles.galleryItem}>
+                <FramedImage source={source} style={styles.galleryImage} />
+                <View style={styles.galleryDot}>
+                  <Text style={styles.galleryDotText}>{index + 1} / 2</Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Project transparency</Text>
+          <View style={styles.transparencyCard}>
+            <View style={styles.transparencyTop}>
+              <View>
+                <Text style={styles.smallLabel}>Project amount raised</Text>
+                <Text style={styles.expenseTotal}>{formatINR(project.raised)}</Text>
+              </View>
+              <View style={styles.checkWrap}>
+                <Feather name="check" size={16} color={colors.light.primary} />
+              </View>
+            </View>
+            <Text style={styles.transparencyCopy}>
+              Project information is published by Our Masjid for transparency and community visibility.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Project description</Text>
+          <Text style={styles.longCopy}>{project.problem || project.description}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Documentation</Text>
+          <Pressable
+            onPress={() => router.push({ pathname: '/document', params: { title: 'Qazi-e-Shaher Documentation' } })}
+            style={styles.docRow}
+          >
+            <Feather name="file-text" size={18} color={colors.light.primary} />
+            <Text style={styles.docTitle}>Qazi-e-Shaher documentation</Text>
+            <Feather name="chevron-right" size={16} color={colors.light.mutedForeground} />
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              Alert.alert(
+                'Masjid Real Documents',
+                'For privacy and security reasons, the original Masjid documents are not publicly accessible. Please contact us for further information or verification.',
+                [
+                  { text: 'Contact Us', onPress: () => router.push({ pathname: '/profile-section', params: { section: 'contact' } }) },
+                  { text: 'Close', style: 'cancel' },
+                ],
+              )
+            }
+            style={styles.docRow}
+          >
+            <Feather name="lock" size={18} color="#AD7D2C" />
+            <Text style={styles.docTitle}>Masjid Real Documents</Text>
+            <Feather name="chevron-right" size={16} color={colors.light.mutedForeground} />
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
+  );
 }
 
-export function usePublishedProjects() {
-  return useQuery({
-    queryKey: ['our-masjid', 'published-projects'],
-    queryFn: fetchPublishedProjects,
-    initialData: { projects: localProjects, source: 'demo' as const },
-    staleTime: 60_000,
-  });
-}
-
-export function usePublishedProject(id: string | undefined) {
-  const query = usePublishedProjects();
-  return {
-    ...query,
-    project: query.data?.projects.find((item) => item.id === id) ?? localProjects[0],
-  };
-}
-
-export function useCompletedWork() {
-  const query = usePublishedProjects();
-  const remoteCompleted =
-    query.data?.projects.filter((project) => project.status === 'Completed') ?? [];
-
-  const localCompleted: Project[] = completedProjects.map((project) => ({
-    id: project.id,
-    name: project.name,
-    location: project.location,
-    category: project.category,
-    status: 'Completed',
-    description: project.description,
-    problem: project.description,
-    target: project.amount,
-    raised: project.amount,
-    image: project.after,
-    verification: 'Completed',
-  }));
-
-  return {
-    ...query,
-    projects: remoteCompleted.length ? remoteCompleted : localCompleted,
-  };
-}
-
-export function usePublishedProjectMedia(projectId: string | undefined) {
-  return useQuery({
-    queryKey: ['our-masjid', 'project-media', projectId],
-    enabled: Boolean(supabase && projectId),
-    queryFn: async (): Promise<ProjectMediaItem[]> => {
-      if (!supabase || !projectId) return [];
-
-      const { data, error } = await supabase
-        .from('project_media')
-        .select('id,project_id,media_type,stage,file_url,caption,sort_order')
-        .eq('project_id', projectId)
-        .eq('media_type', 'image')
-        .order('stage', { ascending: true })
-        .order('sort_order', { ascending: true });
-
-      if (error) throw error;
-
-      return ((data ?? []) as PublicProjectMediaRow[]).map((item) => ({
-        ...item,
-        uri: publicProjectMediaUrl(item.file_url),
-      }));
-    },
-    initialData: [],
-    staleTime: 60_000,
-  });
-}
-
-export function usePublishedProjectMediaMap(projectIds: string[]) {
-  return useQuery({
-    queryKey: ['our-masjid', 'project-media-map', projectIds],
-    enabled: Boolean(supabase && projectIds.length),
-    queryFn: async (): Promise<Record<string, ProjectMediaItem[]>> => {
-      if (!supabase || !projectIds.length) return {};
-
-      const { data, error } = await supabase
-        .from('project_media')
-        .select('id,project_id,media_type,stage,file_url,caption,sort_order')
-        .in('project_id', projectIds)
-        .eq('media_type', 'image')
-        .order('stage', { ascending: true })
-        .order('sort_order', { ascending: true });
-
-      if (error) throw error;
-
-      return ((data ?? []) as PublicProjectMediaRow[]).reduce<Record<string, ProjectMediaItem[]>>(
-        (map, item) => {
-          const media = { ...item, uri: publicProjectMediaUrl(item.file_url) };
-          (map[item.project_id] ??= []).push(media);
-          return map;
-        },
-        {},
-      );
-    },
-    initialData: {},
-    staleTime: 60_000,
-  });
-}
-
-export function usePublishedHomeSlides() {
-  return useQuery({
-    queryKey: ['our-masjid', 'home-slides'],
-    queryFn: async (): Promise<PublicSlideRow[]> => {
-      if (!supabase) return [];
-
-      const { data, error } = await supabase
-        .from('home_slides')
-        .select('id,title,subtitle,image_url,action_type,action_id')
-        .eq('published', true)
-        .order('sort_order', { ascending: true });
-
-      if (error) throw error;
-      return (data ?? []) as PublicSlideRow[];
-    },
-    initialData: [],
-    staleTime: 60_000,
-  });
-}
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.light.background },
+  loadingScreen: { flex: 1, backgroundColor: colors.light.background, alignItems: 'center', justifyContent: 'center' },
+  loadingText: { color: colors.light.mutedForeground, fontSize: 13 },
+  content: { paddingBottom: 45 },
+  topBar: { paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  backButton: { width: 44, height: 44, borderRadius: 15, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#173F31', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  backButtonPressed: { opacity: 0.72 },
+  topTitle: { color: colors.light.foreground, fontSize: 16, fontWeight: '600' },
+  headerCard: { marginHorizontal: 16, backgroundColor: '#FFFFFF', borderRadius: 17, overflow: 'hidden' },
+  headerImage: { height: 190 },
+  coverImage: { width: '100%', height: '100%' },
+  headerBody: { padding: 13 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  title: { flex: 1, color: colors.light.foreground, fontSize: 18, fontWeight: '700' },
+  meta: { color: colors.light.mutedForeground, fontSize: 11, marginTop: 7 },
+  description: { color: '#67756D', fontSize: 12, lineHeight: 18, marginTop: 9 },
+  section: { marginHorizontal: 16, marginTop: 19 },
+  sectionTitle: { color: colors.light.foreground, fontSize: 16, fontWeight: '600', marginBottom: 10 },
+  gallery: { gap: 10 },
+  galleryItem: { width: 270, height: 175, borderRadius: 15, overflow: 'hidden', backgroundColor: '#E8F0EA', position: 'relative' },
+  galleryImage: { width: '100%', height: '100%' },
+  galleryDot: { position: 'absolute', right: 9, bottom: 9, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8 },
+  galleryDotText: { color: '#FFFFFF', fontSize: 10 },
+  transparencyCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14 },
+  transparencyTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  smallLabel: { color: colors.light.mutedForeground, fontSize: 10 },
+  expenseTotal: { color: colors.light.primary, fontSize: 20, fontWeight: '700', marginTop: 3 },
+  checkWrap: { width: 34, height: 34, borderRadius: 11, backgroundColor: '#DDF3E6', alignItems: 'center', justifyContent: 'center' },
+  transparencyCopy: { color: '#67756D', fontSize: 11, lineHeight: 17, marginTop: 10 },
+  longCopy: { color: '#67756D', fontSize: 12, lineHeight: 19, backgroundColor: '#FFFFFF', borderRadius: 15, padding: 14 },
+  docRow: { minHeight: 54, backgroundColor: '#FFFFFF', borderRadius: 14, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  docTitle: { color: colors.light.foreground, fontSize: 12, flex: 1 },
+});

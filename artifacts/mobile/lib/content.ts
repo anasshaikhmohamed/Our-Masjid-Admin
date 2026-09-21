@@ -26,26 +26,6 @@ type PublicProjectRow = {
   } | null;
 };
 
-type PublicProjectMediaRow = {
-  id: string;
-  project_id: string;
-  media_type: 'image' | 'video';
-  stage: 'before' | 'progress' | 'after';
-  file_url: string;
-  caption: string | null;
-  sort_order: number;
-};
-
-export type ProjectMediaItem = PublicProjectMediaRow & {
-  uri: string;
-};
-
-const publicProjectMediaUrl = (fileUrl: string) => {
-  if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
-  const base = supabase?.supabaseUrl ?? '';
-  return `${base}/storage/v1/object/public/public-project-media/${fileUrl.replace(/^\/+/, '')}`;
-};
-
 type PublicSlideRow = {
   id: string;
   title: string;
@@ -122,7 +102,9 @@ export function usePublishedProjects() {
     initialDataUpdatedAt: 0,
     staleTime: 60_000,
   });
-}export function usePublishedProject(id: string | undefined) {
+}
+
+export function usePublishedProject(id: string | undefined) {
   const query = usePublishedProjects();
   return {
     ...query,
@@ -135,82 +117,10 @@ export function useCompletedWork() {
   const remoteCompleted =
     query.data?.projects.filter((project) => project.status === 'Completed') ?? [];
 
-  const localCompleted: Project[] = completedProjects.map((project) => ({
-    id: project.id,
-    name: project.name,
-    location: project.location,
-    category: project.category,
-    status: 'Completed',
-    description: project.description,
-    problem: project.description,
-    target: project.amount,
-    raised: project.amount,
-    image: project.after,
-    verification: 'Completed',
-  }));
-
   return {
     ...query,
-    projects: remoteCompleted.length ? remoteCompleted : localCompleted,
+    projects: remoteCompleted.length ? remoteCompleted : completedProjects,
   };
-}
-
-export function usePublishedProjectMedia(projectId: string | undefined) {
-  return useQuery({
-    queryKey: ['our-masjid', 'project-media', projectId],
-    enabled: Boolean(supabase && projectId),
-    queryFn: async (): Promise<ProjectMediaItem[]> => {
-      if (!supabase || !projectId) return [];
-
-      const { data, error } = await supabase
-        .from('project_media')
-        .select('id,project_id,media_type,stage,file_url,caption,sort_order')
-        .eq('project_id', projectId)
-        .eq('media_type', 'image')
-        .order('stage', { ascending: true })
-        .order('sort_order', { ascending: true });
-
-      if (error) throw error;
-
-      return ((data ?? []) as PublicProjectMediaRow[]).map((item) => ({
-        ...item,
-        uri: publicProjectMediaUrl(item.file_url),
-      }));
-    },
-    initialData: [],
-    staleTime: 60_000,
-  });
-}
-
-export function usePublishedProjectMediaMap(projectIds: string[]) {
-  return useQuery({
-    queryKey: ['our-masjid', 'project-media-map', projectIds],
-    enabled: Boolean(supabase && projectIds.length),
-    queryFn: async (): Promise<Record<string, ProjectMediaItem[]>> => {
-      if (!supabase || !projectIds.length) return {};
-
-      const { data, error } = await supabase
-        .from('project_media')
-        .select('id,project_id,media_type,stage,file_url,caption,sort_order')
-        .in('project_id', projectIds)
-        .eq('media_type', 'image')
-        .order('stage', { ascending: true })
-        .order('sort_order', { ascending: true });
-
-      if (error) throw error;
-
-      return ((data ?? []) as PublicProjectMediaRow[]).reduce<Record<string, ProjectMediaItem[]>>(
-        (map, item) => {
-          const media = { ...item, uri: publicProjectMediaUrl(item.file_url) };
-          (map[item.project_id] ??= []).push(media);
-          return map;
-        },
-        {},
-      );
-    },
-    initialData: {},
-    staleTime: 60_000,
-  });
 }
 
 export function usePublishedHomeSlides() {
@@ -229,6 +139,7 @@ export function usePublishedHomeSlides() {
       return (data ?? []) as PublicSlideRow[];
     },
     initialData: [],
+    initialDataUpdatedAt: 0,
     staleTime: 60_000,
   });
 }
