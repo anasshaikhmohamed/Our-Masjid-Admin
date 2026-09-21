@@ -119,11 +119,10 @@ export function usePublishedProjects() {
     queryKey: ['our-masjid', 'published-projects'],
     queryFn: fetchPublishedProjects,
     initialData: { projects: localProjects, source: 'demo' as const },
+    initialDataUpdatedAt: 0,
     staleTime: 60_000,
   });
-}
-
-export function usePublishedProject(id: string | undefined) {
+}export function usePublishedProject(id: string | undefined) {
   const query = usePublishedProjects();
   return {
     ...query,
