@@ -12,6 +12,10 @@ export type Project = {
   raised: number;
   image: ImageSourcePropType;
   verification: string;
+  workTitle?: string;
+  beforeImages?: ImageSourcePropType[];
+  progressImages?: ImageSourcePropType[];
+  afterImages?: ImageSourcePropType[];
 };
 
 export const projects: Project[] = [

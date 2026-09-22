@@ -1,19 +1,19 @@
 import React from 'react';
 import {
   Image,
+  ImageSourcePropType,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  type ImageSourcePropType,
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '@/constants/colors';
 import { formatINR, progressFor, Project } from '@/lib/data';
-import { FramedImage } from '@/components/FramedImage';
 import { usePublishedHomeSlides } from '@/lib/content';
+import { FramedImage } from '@/components/FramedImage';
 
 export function AppHeader({
   title = 'Our Masjid',
@@ -73,36 +73,29 @@ export function Pill({
 
 export function HeroCarousel() {
   const { data: remoteSlides } = usePublishedHomeSlides();
-
   const fallbackSlides = [
     {
       image: require('@/assets/images/masjid-hero.jpg'),
-      eyebrow: 'Our Masjid',
       title: 'Future For You',
       copy: 'Support your masjid and help build a better future together.',
     },
     {
       image: require('@/assets/images/masjid-exterior.jpg'),
-      eyebrow: 'Our Masjid',
       title: 'Our Masjid',
-      copy: 'Support spaces that serve the community.',
+      copy: 'Support the places that serve our communities.',
     },
     {
       image: require('@/assets/images/masjid-interior.jpg'),
-      eyebrow: 'Our Masjid',
       title: 'Support Your Masjid',
-      copy: 'Follow the work with clarity and transparency.',
+      copy: 'Follow the work with transparency at every step.',
     },
   ];
 
   const slides = remoteSlides?.length
     ? remoteSlides.map((slide) => ({
-        image: slide.image_url
-          ? ({ uri: slide.image_url } as ImageSourcePropType)
-          : require('@/assets/images/masjid-hero.jpg'),
-        eyebrow: 'Our Masjid',
+        image: slide.image_url ? ({ uri: slide.image_url } as ImageSourcePropType) : fallbackSlides[0].image,
         title: slide.title,
-        copy: slide.subtitle ?? 'Support your masjid and help build a better future together.',
+        copy: slide.subtitle ?? '',
       }))
     : fallbackSlides;
 
@@ -122,10 +115,10 @@ export function HeroCarousel() {
             <View style={styles.heroCopy}>
               <View style={styles.heroEyebrow}>
                 <MaterialCommunityIcons name="mosque" size={13} color="#FFE795" />
-                <Text style={styles.heroEyebrowText}>{slide.eyebrow}</Text>
+                <Text style={styles.heroEyebrowText}>Our Masjid</Text>
               </View>
               <Text style={styles.heroTitle}>{slide.title}</Text>
-              <Text style={styles.heroBody}>{slide.copy}</Text>
+              {slide.copy ? <Text style={styles.heroBody} numberOfLines={2}>{slide.copy}</Text> : null}
             </View>
             <View style={styles.dots}>
               {slides.map((_, dotIndex) => (
@@ -217,6 +210,7 @@ export function ProjectCard({
           <Text style={styles.projectCategory}>{project.category}</Text>
         </View>
         <Text style={styles.projectName} numberOfLines={1}>{project.name}</Text>
+        {project.workTitle ? <Text style={styles.projectWorkTitle} numberOfLines={1}>{project.workTitle}</Text> : null}
         <Text style={styles.projectLocation}>
           <Feather name="map-pin" size={12} color={colors.light.mutedForeground} /> {project.location}
         </Text>
@@ -310,6 +304,7 @@ const styles = StyleSheet.create({
   projectMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   projectCategory: { color: colors.light.mutedForeground, fontSize: 11 },
   projectName: { color: colors.light.foreground, fontSize: 15, fontWeight: '600', marginTop: 8 },
+  projectWorkTitle: { color: colors.light.mutedForeground, fontSize: 11, fontWeight: '600', marginTop: 3 },
   projectLocation: { color: colors.light.mutedForeground, fontSize: 11, marginTop: 4 },
   projectDescription: { color: '#69776F', fontSize: 12, lineHeight: 17, marginTop: 9 },
   moneyRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14 },

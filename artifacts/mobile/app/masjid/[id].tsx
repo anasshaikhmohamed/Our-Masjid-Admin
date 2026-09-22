@@ -22,6 +22,7 @@ export default function MasjidDetailScreen() {
         <View style={styles.imageWrap}><FramedImage source={project.image} style={styles.heroImage} /><Pressable onPress={() => router.back()} style={[styles.backButton, { top: insets.top + 10 }]}><Feather name="arrow-left" size={20} color={colors.light.foreground} /></Pressable><View style={styles.imageBottom}><Pill tone={project.status === 'Urgent' ? 'red' : 'green'}>{project.status}</Pill><View style={styles.verified}><Feather name="check-circle" size={12} color={colors.light.primary} /><Text style={styles.verifiedText}>Verified</Text></View></View></View>
         <View style={styles.body}>
           <Text style={styles.title}>{project.name}</Text>
+          {project.workTitle ? <Text style={styles.workTitle}>{project.workTitle}</Text> : null}
           <Text style={styles.location}><Feather name="map-pin" size={13} color={colors.light.mutedForeground} /> {project.location}</Text>
           <Text style={styles.description} numberOfLines={3}>{project.description}</Text>
           <View style={styles.section}><Text style={styles.sectionTitle}>Donation progress</Text><View style={styles.moneyGrid}><View><Text style={styles.moneyLabel}>Target</Text><Text style={[styles.moneyValue, { color: colors.light.primary }]}>{formatINR(project.target)}</Text></View><View><Text style={styles.moneyLabel}>Collected</Text><Text style={[styles.moneyValue, { color: colors.light.primary }]}>{formatINR(project.raised)}</Text></View><View><Text style={styles.moneyLabel}>Remaining</Text><Text style={[styles.moneyValue, { color: '#B4232D' }]}>{formatINR(project.target - project.raised)}</Text></View></View><View style={[styles.progressTrack, isUrgent && styles.progressTrackUrgent]}><View style={[styles.progressFill, isUrgent && styles.progressFillUrgent, { width: `${progress}%` }]} /></View><Text style={[styles.progressText, isUrgent && styles.progressTextUrgent]}>{progress}% completed</Text></View>
@@ -47,6 +48,7 @@ const styles = StyleSheet.create({
   verifiedText: { color: colors.light.primary, fontSize: 10, fontWeight: '600' },
   body: { padding: 16 },
   title: { color: colors.light.foreground, fontSize: 23, fontWeight: '700', letterSpacing: -0.5 },
+  workTitle: { color: colors.light.mutedForeground, fontSize: 12, fontWeight: '600', marginTop: 3 },
   location: { color: colors.light.mutedForeground, fontSize: 12, marginTop: 7 },
   description: { color: '#64736B', fontSize: 13, lineHeight: 19, marginTop: 11 },
   infoGrid: { marginTop: 16, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.light.border, paddingVertical: 4 },

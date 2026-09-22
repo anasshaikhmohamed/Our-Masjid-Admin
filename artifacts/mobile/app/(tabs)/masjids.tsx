@@ -48,7 +48,7 @@ export default function MasjidsScreen() {
                 <Text style={[styles.filterText, item === 'Urgent' && styles.urgentFilterText, filter === item && styles.filterTextActive, filter === item && item === 'Urgent' && styles.urgentFilterTextActive]}>{item}</Text>
               </Pressable>
             )} />
-            <Text style={styles.resultText}>{filteredProjects.length} projects found</Text>
+            <Text style={styles.resultText}>{filteredProjects.length} masjids found</Text>
           </>
         }
         renderItem={({ item }) => <ProjectCard project={item} isSaved={savedIds.includes(item.id)} onToggleSave={() => toggleSaved(item.id)} onPress={() => router.push({ pathname: '/masjid/[id]', params: { id: item.id } })} />}

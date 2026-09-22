@@ -12,6 +12,8 @@ export default function HomeScreen() {
   const projects = data?.projects ?? [];
   const urgentProjects = projects.filter((project) => project.status === 'Urgent');
   const activeProjects = projects.filter((project) => project.status === 'Active');
+  const completedCount = projects.filter((project) => project.status === 'Completed').length;
+  const masjidCount = new Set(projects.map((project) => project.name)).size;
   const totalRaised = projects.reduce((total, project) => total + project.raised, 0);
 
   return (
@@ -28,8 +30,8 @@ export default function HomeScreen() {
           <View style={styles.statGrid}>
             <StatCard icon="currency-inr" label="Total Raised" value={formatINR(totalRaised)} tone="green" onPress={() => router.push('/raised')} />
             <StatCard icon="tools" label="Active Projects" value={String(activeProjects.length)} tone="yellow" />
-            <StatCard icon="check-circle-outline" label="Completed" value={String(14)} tone="green" />
-            <StatCard icon="mosque" label="Masjids" value={String(new Set(projects.map((project) => project.location)).size)} tone="blue" />
+            <StatCard icon="check-circle-outline" label="Completed" value={String(completedCount)} tone="green" />
+            <StatCard icon="mosque" label="Masjids" value={String(masjidCount)} tone="blue" />
           </View>
         </View>
         <View style={styles.section}>

@@ -7,6 +7,15 @@ import {
 } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
 
+type PublicProjectMediaRow = {
+  id: string;
+  media_type: 'image' | 'video';
+  stage: 'before' | 'progress' | 'after';
+  file_url: string;
+  caption: string | null;
+  sort_order: number;
+};
+
 type PublicProjectRow = {
   id: string;
   title: string;
@@ -24,6 +33,7 @@ type PublicProjectRow = {
     is_urgent: boolean;
     image_url: string | null;
   } | null;
+  project_media: PublicProjectMediaRow[] | null;
 };
 
 type PublicSlideRow = {
@@ -45,14 +55,28 @@ export type PublishedProjectsResult = {
 const localImageFor = (id: string): ImageSourcePropType | undefined =>
   localProjects.find((project) => project.id === id)?.image;
 
+function mediaSources(rows: PublicProjectMediaRow[] | null | undefined, stage: PublicProjectMediaRow['stage']) {
+  return (rows ?? [])
+    .filter((item) => item.media_type === 'image' && item.stage === stage && !!item.file_url)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((item) => ({ uri: item.file_url } as ImageSourcePropType));
+}
+
 function toProject(row: PublicProjectRow): Project {
-  const localMatch = localProjects.find((project) => project.id === row.id);
   const target = Number(row.target_amount);
   const raised = Number(row.raised_amount);
+  const beforeImages = mediaSources(row.project_media, 'before');
+  const progressImages = mediaSources(row.project_media, 'progress');
+  const afterImages = mediaSources(row.project_media, 'after');
+  const fallbackImage = row.masjid?.image_url
+    ? ({ uri: row.masjid.image_url } as ImageSourcePropType)
+    : localImageFor(row.id) ?? localProjects[0].image;
 
   return {
     id: row.id,
-    name: row.title,
+    // The mobile app represents a masjid; keep the actual project/work title separately.
+    name: row.masjid?.name ?? row.title,
+    workTitle: row.title,
     location: row.masjid?.location ?? row.masjid?.city ?? 'Community location',
     category: row.category?.name ?? 'Community support',
     status: row.masjid?.is_urgent
@@ -64,9 +88,10 @@ function toProject(row: PublicProjectRow): Project {
     problem: row.full_description ?? row.short_description ?? '',
     target,
     raised,
-    image: row.masjid?.image_url
-      ? { uri: row.masjid.image_url }
-      : localImageFor(row.id) ?? localProjects[0].image,
+    image: fallbackImage,
+    beforeImages,
+    progressImages,
+    afterImages,
     verification: 'Published by Our Masjid',
   };
 }
@@ -79,7 +104,7 @@ async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
   const { data, error } = await supabase
     .from('projects')
     .select(
-      'id,title,short_description,full_description,target_amount,raised_amount,status,featured,category:categories(name),masjid:masjids(name,location,city,is_urgent,image_url)',
+      'id,title,short_description,full_description,target_amount,raised_amount,status,featured,category:categories(name),masjid:masjids(name,location,city,is_urgent,image_url),project_media(id,media_type,stage,file_url,caption,sort_order)',
     )
     .eq('published', true)
     .neq('status', 'hidden')
