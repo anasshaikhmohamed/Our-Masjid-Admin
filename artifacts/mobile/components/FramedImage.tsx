@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Image,
   ImageSourcePropType,
@@ -13,6 +13,7 @@ type FramedImageProps = {
   source: ImageSourcePropType;
   style?: StyleProp<ViewStyle>;
   imageStyle?: StyleProp<ImageStyle>;
+  fallbackSource?: ImageSourcePropType;
 };
 
 /**
@@ -20,10 +21,21 @@ type FramedImageProps = {
  * Cover preserves the aspect ratio while cropping the least important edges
  * of square or portrait photos instead of leaving side gaps.
  */
-export function FramedImage({ source, style, imageStyle }: FramedImageProps) {
+export function FramedImage({ source, style, imageStyle, fallbackSource }: FramedImageProps) {
+  const [currentSource, setCurrentSource] = useState<ImageSourcePropType>(source);
+
   return (
     <View style={[styles.frame, style]}>
-      <Image source={source} style={[styles.image, imageStyle]} resizeMode="cover" />
+      <Image
+        source={currentSource}
+        style={[styles.image, imageStyle]}
+        resizeMode="cover"
+        onError={() => {
+          if (fallbackSource && currentSource !== fallbackSource) {
+            setCurrentSource(fallbackSource);
+          }
+        }}
+      />
     </View>
   );
 }

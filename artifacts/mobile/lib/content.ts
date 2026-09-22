@@ -55,11 +55,23 @@ export type PublishedProjectsResult = {
 const localImageFor = (id: string): ImageSourcePropType | undefined =>
   localProjects.find((project) => project.id === id)?.image;
 
+function publicStorageUrl(bucket: string, pathOrUrl: string | null): string | null {
+  if (!pathOrUrl) return null;
+  const value = pathOrUrl.trim();
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value)) return value;
+  return supabase?.storage.from(bucket).getPublicUrl(value).data.publicUrl ?? null;
+}
+
 function mediaSources(rows: PublicProjectMediaRow[] | null | undefined, stage: PublicProjectMediaRow['stage']) {
   return (rows ?? [])
     .filter((item) => item.media_type === 'image' && item.stage === stage && !!item.file_url)
     .sort((a, b) => a.sort_order - b.sort_order)
-    .map((item) => ({ uri: item.file_url } as ImageSourcePropType));
+    .map((item) => {
+      const url = publicStorageUrl('public-project-media', item.file_url);
+      return url ? ({ uri: url } as ImageSourcePropType) : null;
+    })
+    .filter((item): item is ImageSourcePropType => !!item);
 }
 
 function toProject(row: PublicProjectRow): Project {
@@ -68,8 +80,9 @@ function toProject(row: PublicProjectRow): Project {
   const beforeImages = mediaSources(row.project_media, 'before');
   const progressImages = mediaSources(row.project_media, 'progress');
   const afterImages = mediaSources(row.project_media, 'after');
-  const fallbackImage = row.masjid?.image_url
-    ? ({ uri: row.masjid.image_url } as ImageSourcePropType)
+  const masjidImageUrl = publicStorageUrl('public-masjid-media', row.masjid?.image_url ?? null);
+  const fallbackImage = masjidImageUrl
+    ? ({ uri: masjidImageUrl } as ImageSourcePropType)
     : localImageFor(row.id) ?? localProjects[0].image;
 
   return {
@@ -161,7 +174,11 @@ export function usePublishedHomeSlides() {
         .order('sort_order', { ascending: true });
 
       if (error) throw error;
-      return (data ?? []) as PublicSlideRow[];
+
+      return ((data ?? []) as PublicSlideRow[]).map((slide) => ({
+        ...slide,
+        image_url: publicStorageUrl('public-home-media', slide.image_url),
+      }));
     },
     initialData: [],
     initialDataUpdatedAt: 0,

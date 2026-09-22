@@ -110,7 +110,11 @@ export function HeroCarousel() {
       >
         {slides.map((slide, index) => (
           <View style={styles.heroSlide} key={`${slide.title}-${index}`}>
-            <FramedImage source={slide.image} style={styles.heroImage} />
+            <FramedImage
+              source={slide.image}
+              fallbackSource={fallbackSlides[index % fallbackSlides.length].image}
+              style={styles.heroImage}
+            />
             <View style={styles.heroShade} />
             <View style={styles.heroCopy}>
               <View style={styles.heroEyebrow}>
@@ -217,18 +221,38 @@ export function ProjectCard({
         {compact ? (
           <>
             <View style={[styles.progressTrack, isUrgent && styles.progressTrackUrgent]}><View style={[styles.progressFill, isUrgent && styles.progressFillUrgent, { width: `${percentage}%` }]} /></View>
-            <View style={styles.compactMoneyRow}><Text style={styles.compactRaised}>{formatINR(project.raised)} raised</Text><Text style={[styles.compactLeft, isUrgent && styles.compactLeftUrgent]}>{formatINR(project.target - project.raised)} left</Text></View>
+            {project.status === 'Completed' ? (
+              <View style={styles.compactMoneyRow}>
+                <Text style={styles.compactRaised}>{formatINR(project.raised)} raised</Text>
+                <Text style={styles.completedAmount}>✓ Completed</Text>
+              </View>
+            ) : (
+              <View style={styles.compactMoneyRow}>
+                <Text style={styles.compactRaised}>{formatINR(project.raised)} raised</Text>
+                <Text style={[styles.compactLeft, isUrgent && styles.compactLeftUrgent]}>{formatINR(project.target - project.raised)} left</Text>
+              </View>
+            )}
           </>
         ) : (
           <>
             <Text style={styles.projectDescription} numberOfLines={2}>{project.description}</Text>
-            <View style={styles.moneyRow}>
-              <View><Text style={styles.moneyLabel}>Target</Text><Text style={[styles.moneyValue, { color: colors.light.primary }]}>{formatINR(project.target)}</Text></View>
-              <View><Text style={styles.moneyLabel}>Raised</Text><Text style={[styles.moneyValue, { color: colors.light.primary }]}>{formatINR(project.raised)}</Text></View>
-              <View><Text style={styles.moneyLabel}>Needed</Text><Text style={[styles.moneyValue, { color: '#B4232D' }]}>{formatINR(project.target - project.raised)}</Text></View>
-            </View>
+            {project.status === 'Completed' ? (
+              <View style={styles.completedRow}>
+                <Text style={styles.moneyLabel}>Project status</Text>
+                <Text style={styles.completedAmount}>✓ Completed</Text>
+              </View>
+            ) : (
+              <View style={styles.moneyRow}>
+                <View><Text style={styles.moneyLabel}>Target</Text><Text style={[styles.moneyValue, { color: colors.light.primary }]}>{formatINR(project.target)}</Text></View>
+                <View><Text style={styles.moneyLabel}>Raised</Text><Text style={[styles.moneyValue, { color: colors.light.primary }]}>{formatINR(project.raised)}</Text></View>
+                <View><Text style={styles.moneyLabel}>Needed</Text><Text style={[styles.moneyValue, { color: '#B4232D' }]}>{formatINR(project.target - project.raised)}</Text></View>
+              </View>
+            )}
             <View style={[styles.progressTrack, isUrgent && styles.progressTrackUrgent]}><View style={[styles.progressFill, isUrgent && styles.progressFillUrgent, { width: `${percentage}%` }]} /></View>
-            <View style={styles.progressBottom}><Text style={styles.progressText}>{percentage}% funded</Text><Text style={styles.progressText}>{formatINR(project.target - project.raised)} left</Text></View>
+            <View style={styles.progressBottom}>
+              <Text style={styles.progressText}>{percentage}% funded</Text>
+              {project.status === 'Completed' ? <Text style={styles.progressText}>Fully funded</Text> : <Text style={styles.progressText}>{formatINR(project.target - project.raised)} left</Text>}
+            </View>
             <View style={[styles.cardButton, isUrgent && styles.cardButtonUrgent]}><Text style={styles.cardButtonText}>View project</Text><Feather name="arrow-up-right" size={15} color="#FFFFFF" /></View>
           </>
         )}
@@ -318,6 +342,8 @@ const styles = StyleSheet.create({
   compactRaised: { color: colors.light.primary, fontSize: 10, fontWeight: '600' },
   compactLeft: { color: '#B4232D', fontSize: 10, fontWeight: '600' },
   compactLeftUrgent: { color: '#B4232D' },
+  completedAmount: { color: '#1F7A4D', fontSize: 12, fontWeight: '700' },
+  completedRow: { marginTop: 2, marginBottom: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   progressBottom: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 },
   progressText: { color: colors.light.primary, fontSize: 10, fontWeight: '500' },
   cardButton: { marginTop: 12, backgroundColor: colors.light.primary, minHeight: 36, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
