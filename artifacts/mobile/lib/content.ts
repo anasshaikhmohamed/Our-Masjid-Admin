@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ImageSourcePropType } from 'react-native';
 import {
-  completedProjects,
   projects as localProjects,
   type Project,
 } from '@/lib/data';
@@ -45,7 +45,10 @@ type PublicSlideRow = {
   action_id: string | null;
 };
 
-export type ContentSource = 'demo' | 'supabase';
+export type ContentSource = 'cache' | 'supabase';
+
+const PROJECTS_CACHE_KEY = '@our-masjid/cache/published-projects';
+const HOME_SLIDES_CACHE_KEY = '@our-masjid/cache/home-slides';
 
 export type PublishedProjectsResult = {
   projects: Project[];
@@ -55,23 +58,11 @@ export type PublishedProjectsResult = {
 const localImageFor = (id: string): ImageSourcePropType | undefined =>
   localProjects.find((project) => project.id === id)?.image;
 
-function publicStorageUrl(bucket: string, pathOrUrl: string | null): string | null {
-  if (!pathOrUrl) return null;
-  const value = pathOrUrl.trim();
-  if (!value) return null;
-  if (/^https?:\/\//i.test(value)) return value;
-  return supabase?.storage.from(bucket).getPublicUrl(value).data.publicUrl ?? null;
-}
-
 function mediaSources(rows: PublicProjectMediaRow[] | null | undefined, stage: PublicProjectMediaRow['stage']) {
   return (rows ?? [])
     .filter((item) => item.media_type === 'image' && item.stage === stage && !!item.file_url)
     .sort((a, b) => a.sort_order - b.sort_order)
-    .map((item) => {
-      const url = publicStorageUrl('public-project-media', item.file_url);
-      return url ? ({ uri: url } as ImageSourcePropType) : null;
-    })
-    .filter((item): item is ImageSourcePropType => !!item);
+    .map((item) => ({ uri: item.file_url } as ImageSourcePropType));
 }
 
 function toProject(row: PublicProjectRow): Project {
@@ -80,9 +71,8 @@ function toProject(row: PublicProjectRow): Project {
   const beforeImages = mediaSources(row.project_media, 'before');
   const progressImages = mediaSources(row.project_media, 'progress');
   const afterImages = mediaSources(row.project_media, 'after');
-  const masjidImageUrl = publicStorageUrl('public-masjid-media', row.masjid?.image_url ?? null);
-  const fallbackImage = masjidImageUrl
-    ? ({ uri: masjidImageUrl } as ImageSourcePropType)
+  const fallbackImage = row.masjid?.image_url
+    ? ({ uri: row.masjid.image_url } as ImageSourcePropType)
     : localImageFor(row.id) ?? localProjects[0].image;
 
   return {
@@ -109,9 +99,22 @@ function toProject(row: PublicProjectRow): Project {
   };
 }
 
+async function readCachedProjects(): Promise<PublishedProjectsResult | null> {
+  try {
+    const raw = await AsyncStorage.getItem(PROJECTS_CACHE_KEY);
+    if (!raw) return null;
+    const projects = JSON.parse(raw) as Project[];
+    return Array.isArray(projects) && projects.length
+      ? { projects, source: 'cache' }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
   if (!supabase) {
-    return { projects: localProjects, source: 'demo' };
+    return (await readCachedProjects()) ?? { projects: [], source: 'cache' };
   }
 
   const { data, error } = await supabase
@@ -124,21 +127,26 @@ async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
     .order('featured', { ascending: false })
     .order('created_at', { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    return (await readCachedProjects()) ?? Promise.reject(error);
+  }
 
-  return {
-    projects: ((data ?? []) as unknown as PublicProjectRow[]).map(toProject),
-    source: 'supabase',
-  };
+  const projects = ((data ?? []) as unknown as PublicProjectRow[]).map(toProject);
+  try {
+    await AsyncStorage.setItem(PROJECTS_CACHE_KEY, JSON.stringify(projects));
+  } catch {
+    // Cache failure must never block live content.
+  }
+
+  return { projects, source: 'supabase' };
 }
 
 export function usePublishedProjects() {
   return useQuery({
     queryKey: ['our-masjid', 'published-projects'],
     queryFn: fetchPublishedProjects,
-    initialData: { projects: localProjects, source: 'demo' as const },
-    initialDataUpdatedAt: 0,
     staleTime: 60_000,
+    retry: false,
   });
 }
 
@@ -157,15 +165,26 @@ export function useCompletedWork() {
 
   return {
     ...query,
-    projects: remoteCompleted.length ? remoteCompleted : completedProjects,
+    projects: remoteCompleted,
   };
+}
+
+async function readCachedHomeSlides(): Promise<PublicSlideRow[]> {
+  try {
+    const raw = await AsyncStorage.getItem(HOME_SLIDES_CACHE_KEY);
+    if (!raw) return [];
+    const slides = JSON.parse(raw) as PublicSlideRow[];
+    return Array.isArray(slides) ? slides : [];
+  } catch {
+    return [];
+  }
 }
 
 export function usePublishedHomeSlides() {
   return useQuery({
     queryKey: ['our-masjid', 'home-slides'],
     queryFn: async (): Promise<PublicSlideRow[]> => {
-      if (!supabase) return [];
+      if (!supabase) return readCachedHomeSlides();
 
       const { data, error } = await supabase
         .from('home_slides')
@@ -173,15 +192,19 @@ export function usePublishedHomeSlides() {
         .eq('published', true)
         .order('sort_order', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        return readCachedHomeSlides();
+      }
 
-      return ((data ?? []) as PublicSlideRow[]).map((slide) => ({
-        ...slide,
-        image_url: publicStorageUrl('public-home-media', slide.image_url),
-      }));
+      const slides = (data ?? []) as PublicSlideRow[];
+      try {
+        await AsyncStorage.setItem(HOME_SLIDES_CACHE_KEY, JSON.stringify(slides));
+      } catch {
+        // Cache failure must never block live content.
+      }
+      return slides;
     },
-    initialData: [],
-    initialDataUpdatedAt: 0,
     staleTime: 60_000,
+    retry: false,
   });
 }
