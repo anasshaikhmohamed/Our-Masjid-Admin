@@ -6,6 +6,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '@/constants/colors';
 import { EmptyState, InfoRow, Pill, ProjectCard } from '@/components/Ui';
 import { projects } from '@/lib/data';
+import { AppNotification, fetchNotifications, markNotificationsRead } from '@/lib/notifications';
 
 const titles: Record<string, string> = { donations: 'My Donations', history: 'Donation History', saved: 'Saved Masjids', notifications: 'Notifications', auto: 'Auto Sadqa', about: 'About Our Masjid', contact: 'Contact Us' };
 
@@ -51,10 +52,23 @@ export default function ProfileSectionScreen() {
         {section === 'contact' ? <Contact /> : null}
         {section === 'auto' ? <AutoSadqa enabled={enabled} setEnabled={setEnabled} frequency={frequency} setFrequency={setFrequency} existing={autoConfig} onCancel={cancelAutoPay} /> : null}
         {section === 'saved' ? <SavedMasjids savedIds={savedIds} onToggleSave={toggleSaved} /> : null}
-        {['donations', 'history', 'notifications'].includes(section) ? <EmptyState title={section === 'notifications' ? 'You’re all caught up' : "You haven't made any donations yet"} body="Your activity will appear here once you get started." /> : null}
+        {section === 'notifications' ? <NotificationsSummary /> : null}
+        {['donations', 'history'].includes(section) ? <EmptyState title="You haven't made any donations yet" body="Your activity will appear here once you get started." /> : null}
       </ScrollView>
     </View>
   );
+}
+
+function NotificationsSummary() {
+  const [rows, setRows] = useState<AppNotification[]>([]);
+  useEffect(() => {
+    let active = true;
+    void fetchNotifications().then((items) => { if (active) setRows(items.slice(0, 5)); });
+    void markNotificationsRead();
+    return () => { active = false; };
+  }, []);
+  if (!rows.length) return <EmptyState title="You’re all caught up" body="Announcements and important updates from Our Masjid will appear here." />;
+  return <View>{rows.map((item) => <View key={item.id} style={styles.notificationCard}><View style={styles.notificationIcon}><Feather name="megaphone" size={16} color={colors.light.primary} /></View><View style={{ flex: 1 }}><Text style={styles.notificationTitle}>{item.title}</Text><Text style={styles.notificationDate}>{new Date(item.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</Text><Text style={styles.notificationBody}>{item.body}</Text></View></View>)}</View>;
 }
 
 function About() {

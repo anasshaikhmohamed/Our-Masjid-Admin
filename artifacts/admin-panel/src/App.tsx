@@ -16,6 +16,7 @@ import {
   LibraryBig,
   LogOut,
   Menu,
+  Megaphone,
   Pencil,
   Plus,
   RefreshCw,
@@ -130,6 +131,14 @@ type Expense = {
   project?: { title: string } | null;
 };
 
+type AppNotification = {
+  id: string;
+  title: string;
+  body: string;
+  published: boolean;
+  created_at: string;
+};
+
 type AuditLog = {
   id: string;
   admin_id: string;
@@ -147,6 +156,7 @@ const navItems = [
   { href: '/categories', label: 'Categories', icon: SlidersHorizontal },
   { href: '/slides', label: 'Home slides', icon: GalleryHorizontalEnd },
   { href: '/donations', label: 'Donations', icon: WalletCards },
+  { href: '/notifications', label: 'Notifications', icon: Megaphone },
   { href: '/expenses', label: 'Expenses', icon: FileText },
   { href: '/documents', label: 'Documents', icon: FileCheck2 },
   { href: '/audit-logs', label: 'Audit logs', icon: Activity },
@@ -727,6 +737,75 @@ function DocumentsPage() {
   return <div className="page-enter"><SectionHeading eyebrow="Evidence library" title="Documents" description="Private documents are visible here only to authorized administrators through RLS-protected rows and storage objects." /><QueryState loading={loading} error={error} onRetry={() => { masjidDocs.reload(); projectDocs.reload(); expenseDocs.reload(); }} label="documents"><div className="overflow-hidden rounded-xl border border-border bg-card"><div className="hidden grid-cols-[.7fr_1fr_.8fr_.7fr_.8fr] gap-4 border-b border-border bg-muted/50 px-5 py-3 font-mono-ui text-[10px] uppercase tracking-[0.14em] text-muted-foreground md:grid"><span>Scope</span><span>Type</span><span>Storage path</span><span>Access</span><span>Added</span></div>{all.map((document) => <div key={String(document.id)} className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[.7fr_1fr_.8fr_.7fr_.8fr] md:items-center md:gap-4"><span className="text-xs font-semibold">{document.scope}</span><span className="text-sm">{String(document.document_type)}</span><span className="truncate font-mono-ui text-[10px] text-muted-foreground">{String(document.file_url)}</span><span className={cn('text-xs', document.is_private ? 'text-amber-700' : 'text-emerald-700')}>{document.is_private ? 'Private' : 'Public'}</span><span className="text-xs text-muted-foreground">{formatDate(String(document.created_at))}</span></div>)}{!all.length && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No document records yet.</p>}</div></QueryState></div>;
 }
 
+async function sendExpoAnnouncement(title: string, body: string, tokens: string[]) {
+  const endpoint = 'https://exp.host/--/api/v2/push/send';
+  let accepted = 0;
+  for (let index = 0; index < tokens.length; index += 100) {
+    const batch = tokens.slice(index, index + 100).map((to) => ({
+      to,
+      title,
+      body,
+      sound: 'default',
+      channelId: 'announcements',
+      data: { url: '/notifications' },
+    }));
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(batch),
+    });
+    if (!response.ok) throw new Error(`Push service returned ${response.status}.`);
+    const result = await response.json() as { data?: Array<{ status?: string }> };
+    accepted += (result.data ?? []).filter((ticket) => ticket.status === 'ok').length;
+  }
+  return accepted;
+}
+
+function NotificationsPage() {
+  const admin = useAdmin();
+  const resource = useResource(() => selectRows<AppNotification>('notifications', 'id,title,body,published,created_at', 'created_at'), 'notifications');
+  const tokens = useResource(() => selectRows<{ token: string; active: boolean }>('device_push_tokens', 'token,active', 'created_at'), 'push-tokens');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const send = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!supabase || !title.trim() || !body.trim()) return;
+    setBusy(true); setError(''); setSuccess('');
+    try {
+      const inserted = await supabase.from('notifications').insert({ title: title.trim(), body: body.trim(), published: true, created_by: admin.id }).select('id').single();
+      if (inserted.error) throw inserted.error;
+      await recordAudit(admin.id, 'create', 'notification', inserted.data.id, { title: title.trim(), broadcast: true });
+      const activeTokens = (tokens.data ?? []).filter((item) => item.active).map((item) => item.token);
+      let accepted = 0;
+      if (activeTokens.length) accepted = await sendExpoAnnouncement(title.trim(), body.trim(), activeTokens);
+      setSuccess(activeTokens.length ? `Announcement published. ${accepted} device notifications accepted.` : 'Announcement published. No push-enabled devices are registered yet.');
+      setTitle(''); setBody(''); resource.reload();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to send announcement.');
+    } finally { setBusy(false); }
+  };
+
+  return <div className="page-enter"><SectionHeading eyebrow="Broadcast desk" title="Notifications" description="Publish an announcement once and deliver it to every registered device. The same announcement also appears inside the app." />
+    <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
+      <form onSubmit={send} className="rounded-xl border border-border bg-card p-5">
+        <p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-primary">New announcement</p>
+        <h3 className="mt-1 font-display text-xl font-semibold">Send to all users</h3>
+        {error && <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+        {success && <div className="mt-4 rounded-lg bg-secondary p-3 text-sm text-primary">{success}</div>}
+        <div className="mt-5 space-y-4"><Input label="Title" value={title} onChange={setTitle} placeholder="Important update" required /><Textarea label="Message" value={body} onChange={setBody} rows={6} /><Button type="submit" disabled={busy}>{busy ? 'Sending…' : 'Publish & notify all users'}</Button></div>
+      </form>
+      <div className="space-y-6">
+        <div className="rounded-xl border border-border bg-primary p-5 text-primary-foreground"><Megaphone size={20} className="text-accent" /><p className="mt-4 font-display text-3xl font-semibold">{tokens.loading ? '—' : String((tokens.data ?? []).filter((item) => item.active).length)}</p><p className="mt-1 text-sm text-primary-foreground/70">Active push-enabled devices</p><p className="mt-4 text-xs leading-relaxed text-primary-foreground/65">Users who deny notification permission still receive announcements inside the app when they open the Notifications screen.</p></div>
+        <div className="rounded-xl border border-border bg-card p-5"><p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Recent announcements</p><QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="notifications"><div className="mt-4 space-y-3">{(resource.data ?? []).slice(0, 8).map((item) => <div key={item.id} className="rounded-lg bg-muted/40 p-3"><div className="flex items-start justify-between gap-3"><p className="text-sm font-semibold">{item.title}</p><span className="text-[10px] text-muted-foreground">{formatDate(item.created_at)}</span></div><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.body}</p></div>)}{!resource.data?.length && <p className="text-sm text-muted-foreground">No announcements yet.</p>}</div></QueryState></div>
+      </div>
+    </div>
+  </div>;
+}
+
 function AuditLogsPage() {
   const resource = useResource(() => selectRows<AuditLog>('audit_logs', '*', 'created_at'), 'audit-logs');
   return <div className="page-enter"><SectionHeading eyebrow="Accountability" title="Audit logs" description="Append-only records of publishing, content, role, fundraising, and expense actions." /><QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="audit logs"><div className="overflow-hidden rounded-xl border border-border bg-card">{(resource.data ?? []).map((log) => <div key={log.id} className="flex flex-col gap-2 border-b border-border px-5 py-4 last:border-0 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold">{log.action} · {log.entity_type}</p><p className="mt-1 font-mono-ui text-[10px] text-muted-foreground">{log.entity_id ?? 'No entity id'} · admin {log.admin_id}</p></div><span className="text-xs text-muted-foreground">{formatDate(log.created_at)}</span></div>)}{!resource.data?.length && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No audit entries yet.</p>}</div></QueryState></div>;
@@ -740,7 +819,7 @@ function SettingsPage() {
 }
 
 function AppRouter() {
-  return <Switch><Route path="/" component={Overview} /><Route path="/masjids" component={MasjidsPage} /><Route path="/projects" component={ProjectsPage} /><Route path="/categories" component={CategoriesPage} /><Route path="/slides" component={SlidesPage} /><Route path="/donations" component={DonationsPage} /><Route path="/expenses" component={ExpensesPage} /><Route path="/documents" component={DocumentsPage} /><Route path="/audit-logs" component={AuditLogsPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Overview} /><Route path="/masjids" component={MasjidsPage} /><Route path="/projects" component={ProjectsPage} /><Route path="/categories" component={CategoriesPage} /><Route path="/slides" component={SlidesPage} /><Route path="/donations" component={DonationsPage} /><Route path="/notifications" component={NotificationsPage} /><Route path="/expenses" component={ExpensesPage} /><Route path="/documents" component={DocumentsPage} /><Route path="/audit-logs" component={AuditLogsPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch>;
 }
 
 function App() {

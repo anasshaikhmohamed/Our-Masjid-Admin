@@ -14,9 +14,21 @@ import {
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { verifySupabaseConnection } from '@/lib/supabase-health';
+import * as Notifications from 'expo-notifications';
+import { registerForPushNotifications } from '@/lib/notifications';
+import { router } from 'expo-router';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 const queryClient = new QueryClient();
 
@@ -38,6 +50,7 @@ function RootLayoutNav() {
       <Stack.Screen name="profile-edit" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="document" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="profile-section" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
     </Stack>
   );
 }
@@ -55,6 +68,14 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  useEffect(() => {
+    void registerForPushNotifications();
+    const received = Notifications.addNotificationResponseReceivedListener(() => {
+      router.push('/notifications');
+    });
+    return () => received.remove();
+  }, []);
 
   useEffect(() => {
     verifySupabaseConnection()

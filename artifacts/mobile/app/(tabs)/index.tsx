@@ -1,14 +1,21 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import colors from '@/constants/colors';
 import { formatINR } from '@/lib/data';
 import { usePublishedProjects } from '@/lib/content';
 import { AppHeader, HeroCarousel, ProjectCard, SectionTitle, StatCard } from '@/components/Ui';
+import { getUnreadNotificationCount } from '@/lib/notifications';
 
 export default function HomeScreen() {
   const { data } = usePublishedProjects();
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void getUnreadNotificationCount().then((count) => { if (active) setUnreadNotifications(count); });
+    return () => { active = false; };
+  }, []));
   const projects = data?.projects ?? [];
   const urgentProjects = projects.filter((project) => project.status === 'Urgent');
   const activeProjects = projects.filter((project) => project.status === 'Active');
@@ -22,7 +29,7 @@ export default function HomeScreen() {
         <AppHeader
           title="Our Masjid"
           subtitle="Serving communities, building trust"
-          right={<View style={styles.headerIcon}><Feather name="bell" size={17} color={colors.light.primary} /><View style={styles.notificationDot} /></View>}
+          right={<Pressable onPress={() => router.push('/notifications')} style={styles.headerIcon}><Feather name="bell" size={17} color={colors.light.primary} />{unreadNotifications > 0 ? <View style={styles.notificationDot} /> : null}</Pressable>}
         />
         <HeroCarousel />
         <View style={styles.section}>

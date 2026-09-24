@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Image,
   ImageSourcePropType,
@@ -23,6 +23,10 @@ type FramedImageProps = {
  */
 export function FramedImage({ source, style, imageStyle, fallbackSource }: FramedImageProps) {
   const [currentSource, setCurrentSource] = useState<ImageSourcePropType>(source);
+
+  useEffect(() => {
+    setCurrentSource(source);
+  }, [source]);
 
   return (
     <View style={[styles.frame, style]}>
