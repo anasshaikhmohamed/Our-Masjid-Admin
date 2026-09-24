@@ -72,7 +72,7 @@ export function Pill({
 }
 
 export function HeroCarousel() {
-  const { data: remoteSlides } = usePublishedHomeSlides();
+  const { data: remoteSlides, isLoading: slidesLoading } = usePublishedHomeSlides();
   const fallbackSlides = [
     {
       image: require('@/assets/images/masjid-hero.jpg'),
@@ -90,6 +90,10 @@ export function HeroCarousel() {
       copy: 'Follow the work with transparency at every step.',
     },
   ];
+
+  if (slidesLoading) {
+    return <View style={styles.heroWrap} />;
+  }
 
   const slides = remoteSlides?.length
     ? remoteSlides.map((slide) => ({

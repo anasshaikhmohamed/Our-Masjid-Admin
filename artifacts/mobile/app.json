@@ -18,7 +18,16 @@
     },
     "plugins": [
       "expo-router",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0F4D3A",
+          "imageWidth": 180
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -28,11 +37,6 @@
       "eas": {
         "projectId": "be433d19-205a-4017-9c26-43d4d936baf7"
       }
-    },
-    "splash": {
-      "image": "./assets/images/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0F4D3A"
     }
   }
 }

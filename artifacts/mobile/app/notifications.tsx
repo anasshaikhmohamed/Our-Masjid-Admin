@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import colors from '@/constants/colors';
@@ -21,7 +21,9 @@ export default function NotificationsScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.topBar}>
-        <View style={styles.topSide}><Feather name="bell" size={18} color={colors.light.primary} /></View>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.topSide}>
+          <Feather name="arrow-left" size={19} color={colors.light.primary} />
+        </Pressable>
         <Text style={styles.title}>Notifications</Text>
         <View style={styles.topSide} />
       </View>
