@@ -2,6 +2,7 @@ import type { ImageSourcePropType } from 'react-native';
 
 export type Project = {
   id: string;
+  masjidId?: string;
   name: string;
   location: string;
   category: string;
@@ -18,6 +19,7 @@ export type Project = {
   afterImages?: ImageSourcePropType[];
   videoUrls?: string[];
   documents?: Array<{ id: string; title: string; url: string; isPrivate: boolean }>;
+  masjidDocuments?: Array<{ id: string; title: string; url: string; isPrivate: boolean }>;
   expenses?: Array<{ id: string; title: string; amount: number; date: string | null; billUrl?: string | null; billPrivate?: boolean }>;
 };
 

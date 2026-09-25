@@ -25,10 +25,10 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 105 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
         <AppHeader
-          title="Our Masjid"
-          subtitle="Serving communities, building trust"
+          title="Every Masjid is verified"
+          subtitle="See where every contribution goes."
           right={<Pressable onPress={() => router.push('/notifications')} style={styles.headerIcon}><Feather name="bell" size={17} color={colors.light.primary} />{unreadNotifications > 0 ? <View style={styles.notificationDot} /> : null}</Pressable>}
         />
         <HeroCarousel />
@@ -49,11 +49,6 @@ export default function HomeScreen() {
             ))}
           </ScrollView>
         </View>
-        <View style={styles.trustBanner}>
-          <View style={styles.trustIcon}><Feather name="shield" size={17} color={colors.light.primary} /></View>
-          <View style={{ flex: 1 }}><Text style={styles.trustTitle}>Every project is verified</Text><Text style={styles.trustCopy}>Follow the work. See where every contribution goes.</Text></View>
-          <Feather name="arrow-up-right" size={17} color={colors.light.primary} />
-        </View>
       </ScrollView>
     </View>
   );
@@ -65,8 +60,4 @@ const styles = StyleSheet.create({
   headerIcon: { width: 37, height: 37, borderRadius: 13, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#1F4D3B', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   notificationDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#C51F2A', position: 'absolute', right: 8, top: 7 },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 11 },
-  trustBanner: { marginHorizontal: 16, marginTop: 20, padding: 13, borderRadius: 15, backgroundColor: '#DDF3E6', flexDirection: 'row', alignItems: 'center', gap: 10 },
-  trustIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  trustTitle: { color: colors.light.primary, fontSize: 12, fontWeight: '600' },
-  trustCopy: { color: '#557066', fontSize: 10, marginTop: 3 },
 });

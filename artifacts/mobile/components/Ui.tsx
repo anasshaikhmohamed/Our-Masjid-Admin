@@ -72,7 +72,7 @@ export function Pill({
 }
 
 export function HeroCarousel() {
-  const { data: remoteSlides, isLoading: slidesLoading } = usePublishedHomeSlides();
+  const { data: remoteSlides } = usePublishedHomeSlides();
   const fallbackSlides = [
     {
       image: require('@/assets/images/masjid-hero.jpg'),
@@ -91,9 +91,6 @@ export function HeroCarousel() {
     },
   ];
 
-  if (slidesLoading) {
-    return <View style={styles.heroWrap} />;
-  }
 
   const slides = remoteSlides?.length
     ? remoteSlides.map((slide) => ({
@@ -123,7 +120,7 @@ export function HeroCarousel() {
             <View style={styles.heroCopy}>
               <View style={styles.heroEyebrow}>
                 <MaterialCommunityIcons name="mosque" size={13} color="#FFE795" />
-                <Text style={styles.heroEyebrowText}>Our Masjid</Text>
+                <Text style={styles.heroEyebrowText}>Features For You</Text>
               </View>
               <Text style={styles.heroTitle}>{slide.title}</Text>
               {slide.copy ? <Text style={styles.heroBody} numberOfLines={2}>{slide.copy}</Text> : null}

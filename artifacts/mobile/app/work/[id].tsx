@@ -25,11 +25,9 @@ export default function WorkDetailScreen() {
   }
 
   const beforeImages = project.beforeImages?.length ? project.beforeImages : [project.image];
-  const progressImages = project.progressImages ?? [];
   const afterImages = project.afterImages?.length ? project.afterImages : [project.image];
   const galleries = [
     { title: 'Before', images: beforeImages },
-    ...(progressImages.length ? [{ title: 'Work In Progress', images: progressImages }] : []),
     { title: 'After Your Support', images: afterImages },
   ];
   const expenses = project.expenses ?? [];
@@ -51,7 +49,7 @@ export default function WorkDetailScreen() {
 
         {galleries.map((gallery) => <View key={gallery.title} style={styles.section}><Text style={styles.sectionTitle}>{gallery.title}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gallery}>{gallery.images.map((image, index) => <View key={index} style={styles.galleryItem}><FramedImage source={image} style={styles.galleryImage} /><View style={styles.galleryDot}><Text style={styles.galleryDotText}>{index + 1} / {gallery.images.length}</Text></View></View>)}</ScrollView></View>)}
 
-        {(project.videoUrls ?? []).length > 0 && <View style={styles.section}><Text style={styles.sectionTitle}>Project videos</Text>{(project.videoUrls ?? []).map((url, index) => <ProjectVideo key={`${url}-${index}`} url={url} />)}</View>}
+        {(project.videoUrls ?? []).length > 0 && <View style={styles.section}><Text style={styles.sectionTitle}>Project Videos</Text>{(project.videoUrls ?? []).map((url, index) => <ProjectVideo key={`${url}-${index}`} url={url} />)}</View>}
 
         <View style={styles.section}><Text style={styles.sectionTitle}>Project transparency</Text><View style={styles.transparencyCard}><View style={styles.transparencyTop}><View><Text style={styles.smallLabel}>Recorded project expenses</Text><Text style={styles.expenseTotal}>{formatINR(expenses.reduce((sum, item) => sum + item.amount, 0))}</Text></View><View style={styles.checkWrap}><Feather name="check" size={16} color={colors.light.primary} /></View></View><Text style={styles.transparencyCopy}>Expenses are recorded by the admin panel and supporting bills are protected according to their privacy setting.</Text>{expenses.length ? expenses.map((expense) => <ExpenseRow key={expense.id} expense={expense} onPrivate={showPrivateNotice} />) : <Text style={styles.noData}>No expense records have been published for this project.</Text>}</View></View>
 
