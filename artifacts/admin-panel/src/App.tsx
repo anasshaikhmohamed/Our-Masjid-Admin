@@ -35,6 +35,7 @@ import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter
 import { ErrorBoundary } from '@/components/error-boundary';
 import NotFound from '@/pages/not-found';
 import {
+  createPrivateDocumentUrl,
   deletePublicMedia,
   getAdminProfile,
   publicStorageUrl,
@@ -161,7 +162,6 @@ const navItems = [
   { href: '/slides', label: 'Home slides', icon: GalleryHorizontalEnd },
   { href: '/donations', label: 'Donations', icon: WalletCards },
   { href: '/notifications', label: 'Notifications', icon: Megaphone },
-  { href: '/expenses', label: 'Expenses', icon: FileText },
   { href: '/documents', label: 'Documents', icon: FileCheck2 },
   { href: '/audit-logs', label: 'Audit logs', icon: Activity },
 ];
@@ -380,12 +380,12 @@ function QueryState({
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[hsl(155_32%_10%/.55)] p-4 pt-10 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-2xl border border-border bg-card shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+      <div className="flex w-full max-w-2xl max-h-[calc(100dvh-80px)] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
           <h2 className="font-display text-2xl font-semibold">{title}</h2>
           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Close dialog"><X size={18} /></button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="min-h-0 overflow-y-auto p-5">{children}</div>
       </div>
     </div>
   );
@@ -506,6 +506,141 @@ function FormActions({ busy, onCancel }: { busy: boolean; onCancel: () => void }
   return <div className="flex justify-end gap-2 border-t border-border pt-4"><Button variant="quiet" onClick={onCancel}>Cancel</Button><Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</Button></div>;
 }
 
+
+function MasjidEvidenceManager({ masjidId, adminId }: { masjidId: string; adminId: string }) {
+  type MasjidDocument = {
+    id: string;
+    masjid_id: string;
+    document_type: 'qazi_permission' | 'support_letter' | 'verification' | 'other';
+    file_url: string;
+    is_private: boolean;
+    created_at: string;
+  };
+  const [docs, setDocs] = useState<MasjidDocument[]>([]);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    if (!supabase) return;
+    const result = await supabase.from('masjid_documents').select('id,masjid_id,document_type,file_url,is_private,created_at').eq('masjid_id', masjidId).order('created_at', { ascending: false });
+    if (result.error) setError(result.error.message);
+    else setDocs((result.data ?? []) as MasjidDocument[]);
+  };
+  useEffect(() => { void load(); }, [masjidId]);
+
+  const uploadDoc = async (file: File, type: MasjidDocument['document_type'], isPrivate: boolean) => {
+    if (!supabase) return;
+    setBusy(type); setError('');
+    try {
+      const existing = docs.find((doc) => doc.document_type === type && doc.is_private === isPrivate);
+      const uploaded = isPrivate
+        ? await uploadPrivateDocument(file, `${masjidId}/documents`)
+        : await uploadPublicMedia('public-masjid-media', file, `${masjidId}/documents`);
+      if (existing) {
+        if (existing.is_private) await deletePrivateDocument(existing.file_url).catch(() => undefined);
+        else {
+          const marker = '/storage/v1/object/public/public-masjid-media/';
+          if (existing.file_url.includes(marker)) await deletePublicMedia('public-masjid-media', decodeURIComponent(existing.file_url.split(marker)[1])).catch(() => undefined);
+        }
+        const result = await supabase.from('masjid_documents').update({ document_type: type, file_url: isPrivate ? uploaded.path : uploaded.url, is_private: isPrivate }).eq('id', existing.id).select('id').single();
+        if (result.error) throw result.error;
+        await recordAudit(adminId, 'update', 'masjid_document', existing.id, { masjid_id: masjidId, document_type: type, private: isPrivate });
+      } else {
+        const result = await supabase.from('masjid_documents').insert({ masjid_id: masjidId, document_type: type, file_url: isPrivate ? uploaded.path : uploaded.url, is_private: isPrivate }).select('id').single();
+        if (result.error) throw result.error;
+        await recordAudit(adminId, 'upload', 'masjid_document', result.data.id, { masjid_id: masjidId, document_type: type, private: isPrivate });
+      }
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to update Masjid document.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const removeDoc = async (doc: MasjidDocument) => {
+    if (!supabase || !window.confirm('Delete this Masjid document?')) return;
+    setBusy(`delete-${doc.id}`); setError('');
+    try {
+      if (doc.is_private) await deletePrivateDocument(doc.file_url).catch(() => undefined);
+      else {
+        const marker = '/storage/v1/object/public/public-masjid-media/';
+        if (doc.file_url.includes(marker)) await deletePublicMedia('public-masjid-media', decodeURIComponent(doc.file_url.split(marker)[1])).catch(() => undefined);
+      }
+      const result = await supabase.from('masjid_documents').delete().eq('id', doc.id);
+      if (result.error) throw result.error;
+      await recordAudit(adminId, 'delete', 'masjid_document', doc.id, { masjid_id: masjidId, document_type: doc.document_type });
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to delete Masjid document.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const openPrivate = async (doc: MasjidDocument) => {
+    try {
+      const url = await createPrivateDocumentUrl(doc.file_url);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to open private document.');
+    }
+  };
+
+  const qazi = docs.find((doc) => doc.document_type === 'qazi_permission');
+  const publicDocs = docs.filter((doc) => doc.document_type !== 'qazi_permission' && !doc.is_private);
+  const privateDocs = docs.filter((doc) => doc.is_private);
+
+  return (
+    <div className="space-y-5 rounded-xl border border-border bg-muted/20 p-4">
+      <div>
+        <p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Documents & verification</p>
+        <h3 className="mt-1 font-display text-lg font-semibold">Qazi letter, Masjid documents & protected records</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Public documents can be opened by app users. Private Masjid Real Documents stay protected.</p>
+      </div>
+      {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-sm font-semibold">Qazi-e-Shaher Permission Letter</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Public verification document shown in the mobile app.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold">
+              <span className="flex items-center gap-1.5"><Upload size={13} /> {qazi ? 'Replace letter' : 'Upload letter'}</span>
+              <input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadDoc(file, 'qazi_permission', false); }} />
+            </label>
+            {qazi && <span className="text-[10px] text-emerald-700">Uploaded</span>}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-sm font-semibold">Masjid Documents</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Public supporting / verification documents shown in the mobile app.</p>
+          <label className="mt-3 inline-flex cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold">
+            <span className="flex items-center gap-1.5"><FileUp size={13} /> Add document</span>
+            <input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadDoc(file, 'verification', false); }} />
+          </label>
+          <div className="mt-3 space-y-2">
+            {publicDocs.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 p-2.5"><div><p className="text-xs font-semibold">Masjid Document</p><p className="text-[10px] text-muted-foreground">Public</p></div><div className="flex items-center gap-2"><a href={doc.file_url} target="_blank" rel="noreferrer" className="text-[10px] font-semibold text-primary">Open</a><button type="button" onClick={() => void removeDoc(doc)} className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><X size={14} /></button></div></div>)}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-3">
+        <p className="text-sm font-semibold">Masjid Real Documents</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">Private records remain protected and are not publicly accessible from the mobile app.</p>
+        <label className="mt-3 inline-flex cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold">
+          <span className="flex items-center gap-1.5"><FileUp size={13} /> Upload private document</span>
+          <input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadDoc(file, 'other', true); }} />
+        </label>
+        <div className="mt-3 space-y-2">
+          {privateDocs.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 p-2.5"><div><p className="text-xs font-semibold">Masjid Real Document</p><p className="text-[10px] text-muted-foreground">Private & protected</p></div><div className="flex items-center gap-2"><button type="button" onClick={() => void openPrivate(doc)} className="text-[10px] font-semibold text-primary">View</button><button type="button" onClick={() => void removeDoc(doc)} className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><X size={14} /></button></div></div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MasjidForm({ initial, categories, onDone, onCancel, adminId }: { initial?: Masjid; categories: Category[]; onDone: () => void; onCancel: () => void; adminId: string }) {
   const [form, setForm] = useState({ name: initial?.name ?? '', location: initial?.location ?? '', city: initial?.city ?? '', description: initial?.description ?? '', image_url: initial?.image_url ?? '', target_amount: String(initial?.target_amount ?? 0), status: initial?.status ?? 'active', category_id: initial?.category_id ?? '', published: initial?.published ?? false, is_urgent: initial?.is_urgent ?? false, is_featured: initial?.is_featured ?? false });
   const [file, setFile] = useState<File | null>(null);
@@ -525,7 +660,7 @@ function MasjidForm({ initial, categories, onDone, onCancel, adminId }: { initia
       onDone();
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save Masjid.'); } finally { setBusy(false); }
   };
-  return <form onSubmit={submit} className="space-y-4">{error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}<div className="grid gap-4 sm:grid-cols-2"><Input label="Name" value={form.name} onChange={(value) => setForm({ ...form, name: value })} required /><Input label="Location" value={form.location} onChange={(value) => setForm({ ...form, location: value })} required /><Input label="City" value={form.city} onChange={(value) => setForm({ ...form, city: value })} required /><Input label="Fundraising target" value={form.target_amount} onChange={(value) => setForm({ ...form, target_amount: value })} type="number" min="0" step="0.01" /><Select label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value as Masjid['status'] })} options={[{ value: 'active', label: 'Active' }, { value: 'completed', label: 'Completed' }, { value: 'hidden', label: 'Hidden' }]} /><Select label="Category" value={form.category_id} onChange={(value) => setForm({ ...form, category_id: value })} options={[{ value: '', label: 'No category' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /></div><Textarea label="Description" value={form.description} onChange={(value) => setForm({ ...form, description: value })} /><div className="grid gap-4 sm:grid-cols-2"><Input label="Image URL (optional)" value={form.image_url} onChange={(value) => setForm({ ...form, image_url: value })} /><label className="block text-xs font-semibold">Upload cover image<input type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="mt-2 block w-full text-xs font-normal" /></label></div><div className="grid gap-2 sm:grid-cols-3"><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><Toggle label="Urgent" checked={form.is_urgent} onChange={(checked) => setForm({ ...form, is_urgent: checked })} /><Toggle label="Featured" checked={form.is_featured} onChange={(checked) => setForm({ ...form, is_featured: checked })} /></div><FormActions busy={busy} onCancel={onCancel} /></form>;
+  return <form onSubmit={submit} className="space-y-4">{error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}<div className="grid gap-4 sm:grid-cols-2"><Input label="Name" value={form.name} onChange={(value) => setForm({ ...form, name: value })} required /><Input label="Location" value={form.location} onChange={(value) => setForm({ ...form, location: value })} required /><Input label="City" value={form.city} onChange={(value) => setForm({ ...form, city: value })} required /><Input label="Fundraising target" value={form.target_amount} onChange={(value) => setForm({ ...form, target_amount: value })} type="number" min="0" step="0.01" /><Select label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value as Masjid['status'] })} options={[{ value: 'active', label: 'Active' }, { value: 'completed', label: 'Completed' }, { value: 'hidden', label: 'Hidden' }]} /><Select label="Category" value={form.category_id} onChange={(value) => setForm({ ...form, category_id: value })} options={[{ value: '', label: 'No category' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /></div><Textarea label="Description" value={form.description} onChange={(value) => setForm({ ...form, description: value })} /><div className="grid gap-4 sm:grid-cols-2"><Input label="Image URL (optional)" value={form.image_url} onChange={(value) => setForm({ ...form, image_url: value })} /><label className="block text-xs font-semibold">Upload cover image<input type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="mt-2 block w-full text-xs font-normal" /></label></div><div className="grid gap-2 sm:grid-cols-3"><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><Toggle label="Urgent" checked={form.is_urgent} onChange={(checked) => setForm({ ...form, is_urgent: checked })} /><Toggle label="Featured" checked={form.is_featured} onChange={(checked) => setForm({ ...form, is_featured: checked })} /></div>{initial?.id && <MasjidEvidenceManager masjidId={initial.id} adminId={adminId} />}<FormActions busy={busy} onCancel={onCancel} /></form>;
 }
 
 function MasjidsPage() {
@@ -644,6 +779,7 @@ function ProjectEvidenceManager({ projectId, adminId }: { projectId: string; adm
   const [qaziFile, setQaziFile] = useState<File | null>(null);
   const [privateFile, setPrivateFile] = useState<File | null>(null);
   const [billFiles, setBillFiles] = useState<Record<string, File | null>>({});
+  const [newExpense, setNewExpense] = useState({ title: '', amount: '', expense_date: '', description: '' });
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
 
@@ -724,6 +860,39 @@ function ProjectEvidenceManager({ projectId, adminId }: { projectId: string; adm
     finally { setBusy(''); }
   };
 
+
+  const addExpense = async () => {
+    if (!supabase || !newExpense.title.trim() || !newExpense.amount) return;
+    setBusy('add-expense'); setError('');
+    try {
+      const result = await supabase.from('project_expenses').insert({
+        project_id: projectId,
+        title: newExpense.title.trim(),
+        description: newExpense.description.trim() || null,
+        amount: Number(newExpense.amount),
+        expense_date: newExpense.expense_date || null,
+      }).select('id').single();
+      if (result.error) throw result.error;
+      await recordAudit(adminId, 'create', 'project_expense', result.data.id, { project_id: projectId, title: newExpense.title.trim() });
+      setNewExpense({ title: '', amount: '', expense_date: '', description: '' });
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to add expense.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const openBill = async (path: string) => {
+    setError('');
+    try {
+      const url = await createPrivateDocumentUrl(path);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to open bill.');
+    }
+  };
+
   const updateExpense = async (expense: Expense, patch: Partial<Expense>) => {
     if (!supabase) return;
     setBusy(`expense-${expense.id}`); setError('');
@@ -769,7 +938,18 @@ function ProjectEvidenceManager({ projectId, adminId }: { projectId: string; adm
       <div className="rounded-lg border border-border bg-card p-3"><p className="text-sm font-semibold">Qazi-e-Shaher Permission Letter</p><p className="mt-1 text-[11px] text-muted-foreground">Public verification document</p><div className="mt-3 flex flex-wrap items-center gap-2"><label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold"><span className="flex items-center gap-1.5"><Upload size={13} /> {docs.some((doc) => doc.document_type === 'qazi_permission') ? 'Replace letter' : 'Upload letter'}</span><input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) { setQaziFile(file); void replaceQazi(file); } }} /></label>{docs.some((doc) => doc.document_type === 'qazi_permission') && <span className="text-[10px] text-emerald-700">Uploaded</span>}</div></div>
       <div className="rounded-lg border border-border bg-card p-3"><p className="text-sm font-semibold">Private Project Documents</p><p className="mt-1 text-[11px] text-muted-foreground">Upload supporting documents. They are not publicly downloadable.</p><div className="mt-3 flex flex-wrap gap-2"><label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold"><span className="flex items-center gap-1.5"><FileUp size={13} /> Add document</span><input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) { setPrivateFile(file); void replacePrivateDoc(null, file); } }} /></label></div><div className="mt-3 space-y-2">{docs.filter((doc) => doc.document_type !== 'qazi_permission').map((doc) => <div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 p-2.5"><div className="flex items-center gap-2"><FileText size={14} className="text-primary" /><div><p className="text-xs font-semibold">Private Project Document</p><p className="text-[10px] text-muted-foreground">Protected</p></div></div><div className="flex items-center gap-2"><label className="cursor-pointer rounded-md border border-border px-2 py-1 text-[10px] font-semibold">Replace<input type="file" accept="image/*,.pdf" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void replacePrivateDoc(doc, file); }} /></label><button type="button" onClick={() => void deleteDoc(doc)} className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><X size={14} /></button></div></div>)}</div></div>
     </div>
-    <div className="rounded-lg border border-border bg-card p-3"><div className="flex items-center justify-between gap-2"><div><p className="text-sm font-semibold">Expenses</p><p className="text-[11px] text-muted-foreground">Edit expense name, amount, date and description, then upload or replace the bill / expense photo.</p></div><FileCheck2 size={18} className="text-primary" /></div><div className="mt-3 space-y-3">{expenses.map((expense) => { const bill = (expenseDocs[expense.id] ?? []).find((doc) => doc.document_type === 'bill' || doc.document_type === 'invoice'); return <div key={expense.id} className="rounded-lg border border-border bg-muted/30 p-3"><div className="grid gap-3 md:grid-cols-4"><Input label="Expense name" value={expense.title} onChange={(value) => setExpenses((items) => items.map((item) => item.id === expense.id ? { ...item, title: value } : item))} /><Input label="Amount" value={String(expense.amount)} onChange={(value) => setExpenses((items) => items.map((item) => item.id === expense.id ? { ...item, amount: value } : item))} type="number" min="0" step="0.01" /><Input label="Date" value={expense.expense_date ?? ''} onChange={(value) => setExpenses((items) => items.map((item) => item.id === expense.id ? { ...item, expense_date: value } : item))} type="date" /><Input label="Description" value={expense.description ?? ''} onChange={(value) => setExpenses((items) => items.map((item) => item.id === expense.id ? { ...item, description: value } : item))} /></div><div className="mt-3 flex flex-wrap items-center gap-2"><button type="button" onClick={() => void updateExpense(expense, expense)} disabled={busy !== ''} className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">{busy === `expense-${expense.id}` ? 'Saving…' : 'Save expense'}</button><label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold"><span className="flex items-center gap-1.5"><Upload size={13} /> {bill ? 'Replace bill / photo' : 'Upload bill / photo'}</span><input type="file" accept="image/*,.pdf" className="hidden" disabled={busy !== ''} onChange={(event) => { const file = event.target.files?.[0]; if (file) { setBillFiles((current) => ({ ...current, [expense.id]: file })); void replaceBill(expense.id, file); } }} /></label>{bill && <span className="text-[10px] text-emerald-700">Bill uploaded</span>}<button type="button" onClick={() => void deleteExpense(expense)} disabled={busy !== ''} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs font-semibold text-destructive disabled:opacity-50">Delete expense</button></div></div>; })}{!expenses.length && <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">No expenses recorded for this project yet. Add expenses from the Expenses page.</p>}</div></div>
+    <div className="rounded-lg border border-border bg-card p-3"><div className="flex items-center justify-between gap-2"><div><p className="text-sm font-semibold">Expenses</p><p className="text-[11px] text-muted-foreground">Add and edit every expense here. Bills / expense photos can be uploaded, replaced and viewed without leaving the project.</p></div><FileCheck2 size={18} className="text-primary" /></div>
+      <div className="mt-3 rounded-lg border border-dashed border-border bg-muted/20 p-3">
+        <p className="text-xs font-semibold">Add expense to this project</p>
+        <div className="mt-3 grid gap-3 md:grid-cols-4">
+          <Input label="Expense name" value={newExpense.title} onChange={(value) => setNewExpense({ ...newExpense, title: value })} />
+          <Input label="Amount" value={newExpense.amount} onChange={(value) => setNewExpense({ ...newExpense, amount: value })} type="number" min="0" step="0.01" />
+          <Input label="Date" value={newExpense.expense_date} onChange={(value) => setNewExpense({ ...newExpense, expense_date: value })} type="date" />
+          <Input label="Description" value={newExpense.description} onChange={(value) => setNewExpense({ ...newExpense, description: value })} />
+        </div>
+        <button type="button" onClick={() => void addExpense()} disabled={busy !== '' || !newExpense.title.trim() || !newExpense.amount} className="mt-3 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">{busy === 'add-expense' ? 'Adding…' : 'Add expense'}</button>
+      </div>
+      <div className="mt-3 space-y-3">{expenses.map((expense) => { const bill = (expenseDocs[expense.id] ?? []).find((doc) => doc.document_type === 'bill' || doc.document_type === 'invoice'); return <div key={expense.id} className="rounded-lg border border-border bg-muted/30 p-3"><div className="grid gap-3 md:grid-cols-4"><Input label="Expense name" value={expense.title} onChange={(value) => setExpenses((items) => items.map((item) => item.id === expense.id ? { ...item, title: value } : item))} /><Input label="Amount" value={String(expense.amount)} onChange={(value) => setExpenses((items) => items.map((item) => item.id === expense.id ? { ...item, amount: value } : item))} type="number" min="0" step="0.01" /><Input label="Date" value={expense.expense_date ?? ''} onChange={(value) => setExpenses((items) => items.map((item) => item.id === expense.id ? { ...item, expense_date: value } : item))} type="date" /><Input label="Description" value={expense.description ?? ''} onChange={(value) => setExpenses((items) => items.map((item) => item.id === expense.id ? { ...item, description: value } : item))} /></div><div className="mt-3 flex flex-wrap items-center gap-2"><button type="button" onClick={() => void updateExpense(expense, expense)} disabled={busy !== ''} className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">{busy === `expense-${expense.id}` ? 'Saving…' : 'Save expense'}</button><label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold"><span className="flex items-center gap-1.5"><Upload size={13} /> {bill ? 'Replace bill / photo' : 'Upload bill / photo'}</span><input type="file" accept="image/*,.pdf" className="hidden" disabled={busy !== ''} onChange={(event) => { const file = event.target.files?.[0]; if (file) { setBillFiles((current) => ({ ...current, [expense.id]: file })); void replaceBill(expense.id, file); } }} /></label>{bill && <><span className="text-[10px] text-emerald-700">Bill uploaded</span><button type="button" onClick={() => void openBill(bill.file_url)} className="text-[10px] font-semibold text-primary">View bill</button></>}<button type="button" onClick={() => void deleteExpense(expense)} disabled={busy !== ''} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs font-semibold text-destructive disabled:opacity-50">Delete expense</button></div></div>; })}{!expenses.length && <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">No expenses recorded for this project yet. Use the Add expense form above.</p>}</div></div>
   </div>;
 }
 
@@ -957,7 +1137,7 @@ function SettingsPage() {
 }
 
 function AppRouter() {
-  return <Switch><Route path="/" component={Overview} /><Route path="/masjids" component={MasjidsPage} /><Route path="/projects" component={ProjectsPage} /><Route path="/categories" component={CategoriesPage} /><Route path="/slides" component={SlidesPage} /><Route path="/donations" component={DonationsPage} /><Route path="/notifications" component={NotificationsPage} /><Route path="/expenses" component={ExpensesPage} /><Route path="/documents" component={DocumentsPage} /><Route path="/audit-logs" component={AuditLogsPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Overview} /><Route path="/masjids" component={MasjidsPage} /><Route path="/projects" component={ProjectsPage} /><Route path="/categories" component={CategoriesPage} /><Route path="/slides" component={SlidesPage} /><Route path="/donations" component={DonationsPage} /><Route path="/notifications" component={NotificationsPage} /><Route path="/documents" component={DocumentsPage} /><Route path="/audit-logs" component={AuditLogsPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch>;
 }
 
 function App() {

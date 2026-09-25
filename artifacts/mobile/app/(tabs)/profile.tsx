@@ -1,11 +1,12 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '@/constants/colors';
 import { AppHeader } from '@/components/Ui';
 import { clearDemoSession } from '@/lib/auth';
+import { ThemedModal } from '@/components/ThemedModal';
 
 const activity = [
   { section: 'activity', key: 'donations', icon: 'hand-heart-outline', title: 'My Donations', copy: 'View your donation history', color: '#DDF3E6' },
@@ -31,6 +32,7 @@ function ProfileRow({ item }: { item: { key: string; icon: string; title: string
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<{ name?: string; phone?: string; email?: string }>({});
+  const [logoutOpen, setLogoutOpen] = useState(false);
   useFocusEffect(useCallback(() => {
     let mounted = true;
     AsyncStorage.getItem('profile').then((value) => {
@@ -39,18 +41,11 @@ export default function ProfileScreen() {
     return () => { mounted = false; };
   }, []));
 
-  const logout = () => {
-    Alert.alert('Log out?', 'You can sign back in with the demo flow anytime.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Log out',
-        style: 'destructive',
-        onPress: async () => {
-          await clearDemoSession();
-          router.replace('/splash');
-        },
-      },
-    ]);
+  const logout = () => setLogoutOpen(true);
+  const confirmLogout = async () => {
+    setLogoutOpen(false);
+    await clearDemoSession();
+    router.replace('/welcome');
   };
 
   return (
@@ -73,6 +68,16 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Log out</Text>
         </Pressable>
       </ScrollView>
+      <ThemedModal
+        visible={logoutOpen}
+        title="Log out?"
+        message="You can sign back in with the demo flow anytime."
+        icon="log-out"
+        primaryLabel="Log out"
+        primaryTone="red"
+        onClose={() => setLogoutOpen(false)}
+        onPrimary={() => void confirmLogout()}
+      />
     </View>
   );
 }

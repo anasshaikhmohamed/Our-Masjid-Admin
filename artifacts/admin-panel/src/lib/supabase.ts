@@ -92,3 +92,10 @@ export async function deletePrivateDocument(path: string) {
   const { error } = await supabase.storage.from('private-documents').remove([path]);
   if (error) throw error;
 }
+
+export async function createPrivateDocumentUrl(path: string, expiresIn = 600) {
+  if (!supabase) throw new Error('Supabase is not configured for the admin panel.');
+  const { data, error } = await supabase.storage.from('private-documents').createSignedUrl(path, expiresIn);
+  if (error) throw error;
+  return data.signedUrl;
+}

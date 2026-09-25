@@ -184,7 +184,10 @@ export function usePublishedProjects() {
   const [cachedData, setCachedData] = useState<PublishedProjectsResult | null>(null);
   useEffect(() => { void readCachedProjects().then(setCachedData); }, []);
   const query = useQuery({ queryKey: ['our-masjid', 'published-projects'], queryFn: fetchPublishedProjects, staleTime: 60_000, retry: false });
-  return { ...query, data: query.data ?? cachedData };
+  // Never let an empty online response replace a known-good cached dataset.
+  // This prevents a temporary RLS/API response from turning the whole app blank.
+  const data = query.data?.projects?.length ? query.data : cachedData ?? query.data;
+  return { ...query, data };
 }
 
 export function usePublishedProject(id: string | undefined) {
@@ -222,5 +225,7 @@ export function usePublishedHomeSlides() {
     staleTime: 60_000,
     retry: false,
   });
-  return { ...query, data: query.data ?? cachedSlides ?? [] };
+  // Keep the last known-good slides visible if an online request temporarily returns no rows.
+  const data = query.data?.length ? query.data : cachedSlides ?? query.data ?? [];
+  return { ...query, data };
 }

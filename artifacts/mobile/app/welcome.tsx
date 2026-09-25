@@ -11,20 +11,11 @@ export default function WelcomeScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 20 }]}>
       <StatusBar style="dark" />
-      <View style={styles.topRow}>
-        <View style={styles.brandMark}>
-          <Image source={require('@/assets/images/icon.png')} style={styles.brandLogo} />
-        </View>
-        <Text style={styles.brandName}>Our Masjid</Text>
-      </View>
-
       <View style={styles.hero}>
         <View style={styles.illustrationOuter}>
           <View style={styles.illustrationInner}>
             <Image source={require('@/assets/images/icon.png')} style={styles.heroLogo} />
           </View>
-          <View style={styles.goldDot} />
-          <View style={styles.greenDot} />
         </View>
         <Text style={styles.heading}>Welcome to Our Masjid</Text>
         <Text style={styles.copy}>
@@ -51,72 +42,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.light.background,
     paddingHorizontal: 22,
   },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  brandMark: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#F7EEDC',
-  },
-  brandLogo: {
-    width: '100%',
-    height: '100%',
-  },
-  brandName: {
-    color: colors.light.primary,
-    fontSize: 17,
-    fontWeight: '700',
-    marginLeft: 10,
-  },
   hero: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: 26,
+    paddingBottom: 18,
   },
   illustrationOuter: {
-    width: 214,
-    height: 214,
-    borderRadius: 107,
-    backgroundColor: '#DDF3E6',
+    width: 205,
+    height: 205,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
   illustrationInner: {
-    width: 164,
-    height: 164,
+    width: 205,
+    height: 205,
     borderRadius: 48,
-    padding: 8,
+    overflow: 'hidden',
     backgroundColor: '#F7EEDC',
-    transform: [{ rotate: '-4deg' }],
+    borderWidth: 1,
+    borderColor: '#D9B45A',
   },
   heroLogo: {
     width: '100%',
     height: '100%',
-    borderRadius: 41,
-  },
-  goldDot: {
-    position: 'absolute',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#F2C644',
-    right: 10,
-    top: 33,
-  },
-  greenDot: {
-    position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.light.primary,
-    left: 19,
-    bottom: 38,
+    borderRadius: 47,
   },
   heading: {
     color: colors.light.foreground,

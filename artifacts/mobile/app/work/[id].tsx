@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -9,6 +9,7 @@ import { formatINR } from '@/lib/data';
 import { usePublishedProject } from '@/lib/content';
 import { Pill } from '@/components/Ui';
 import { FramedImage } from '@/components/FramedImage';
+import { ThemedModal } from '@/components/ThemedModal';
 
 function ProjectVideo({ url }: { url: string }) {
   const player = useVideoPlayer(url);
@@ -19,6 +20,7 @@ export default function WorkDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { project, isLoading } = usePublishedProject(id);
+  const [privateNoticeOpen, setPrivateNoticeOpen] = React.useState(false);
 
   if (isLoading || !project) {
     return <View style={styles.loading}><Feather name="loader" size={22} color={colors.light.primary} /><Text style={styles.loadingText}>Loading project…</Text></View>;
@@ -32,8 +34,9 @@ export default function WorkDetailScreen() {
   ];
   const expenses = project.expenses ?? [];
   const publicDocs = (project.documents ?? []).filter((doc) => !doc.isPrivate);
+  const publicMasjidDocs = (project.masjidDocuments ?? []).filter((doc) => !doc.isPrivate);
 
-  const showPrivateNotice = () => Alert.alert('Private documents', 'Original supporting documents and private bills are protected. Please contact Our Masjid if verification is required.', [{ text: 'Contact Us', onPress: () => router.push({ pathname: '/profile-section', params: { section: 'contact' } }) }, { text: 'Close', style: 'cancel' }]);
+  const showPrivateNotice = () => setPrivateNoticeOpen(true);
 
   return (
     <View style={styles.screen}>
@@ -56,10 +59,24 @@ export default function WorkDetailScreen() {
         <View style={styles.section}><Text style={styles.sectionTitle}>Project description</Text><Text style={styles.longCopy}>{project.problem || project.description}</Text></View>
 
         <View style={styles.section}><Text style={styles.sectionTitle}>Documentation</Text>
-          {publicDocs.length ? publicDocs.map((doc) => <Pressable key={doc.id} onPress={() => void Linking.openURL(doc.url)} style={styles.docRow}><Feather name="file-text" size={18} color={colors.light.primary} /><Text style={styles.docTitle}>{doc.title}</Text><Feather name="external-link" size={16} color={colors.light.mutedForeground} /></Pressable>) : <View style={styles.docRow}><Feather name="file-text" size={18} color={colors.light.mutedForeground} /><Text style={styles.docTitle}>Qazi-e-Shaher permission letter</Text><Text style={styles.docMuted}>Not uploaded</Text></View>}
-          <Pressable onPress={showPrivateNotice} style={styles.docRow}><Feather name="lock" size={18} color="#AD7D2C" /><Text style={styles.docTitle}>Private project documents</Text><Feather name="chevron-right" size={16} color={colors.light.mutedForeground} /></Pressable>
+          {publicDocs.map((doc) => <Pressable key={`project-${doc.id}`} onPress={() => void Linking.openURL(doc.url)} style={styles.docRow}><Feather name="file-text" size={18} color={colors.light.primary} /><Text style={styles.docTitle}>{doc.title}</Text><Feather name="external-link" size={16} color={colors.light.mutedForeground} /></Pressable>)}
+          {publicMasjidDocs.map((doc) => <Pressable key={`masjid-${doc.id}`} onPress={() => void Linking.openURL(doc.url)} style={styles.docRow}><Feather name="file-text" size={18} color={colors.light.primary} /><Text style={styles.docTitle}>{doc.title}</Text><Feather name="external-link" size={16} color={colors.light.mutedForeground} /></Pressable>)}
+          {!publicDocs.length && !publicMasjidDocs.length ? <View style={styles.docRow}><Feather name="file-text" size={18} color={colors.light.mutedForeground} /><Text style={styles.docTitle}>Qazi-e-Shaher permission letter</Text><Text style={styles.docMuted}>Not uploaded</Text></View> : null}
+          <Pressable onPress={showPrivateNotice} style={styles.docRow}><Feather name="lock" size={18} color="#AD7D2C" /><Text style={styles.docTitle}>Private project / Masjid documents</Text><Feather name="chevron-right" size={16} color={colors.light.mutedForeground} /></Pressable>
         </View>
       </ScrollView>
+      <ThemedModal
+        visible={privateNoticeOpen}
+        title="Private documents"
+        message="Original supporting documents and private bills are protected. Please contact Our Masjid if verification is required."
+        icon="lock"
+        primaryLabel="Contact Us"
+        onClose={() => setPrivateNoticeOpen(false)}
+        onPrimary={() => {
+          setPrivateNoticeOpen(false);
+          router.push({ pathname: '/profile-section', params: { section: 'contact' } });
+        }}
+      />
     </View>
   );
 }

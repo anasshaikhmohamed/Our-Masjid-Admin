@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -9,17 +9,19 @@ import { formatINR, progressFor } from '@/lib/data';
 import { usePublishedProject } from '@/lib/content';
 import { InfoRow, Pill } from '@/components/Ui';
 import { FramedImage } from '@/components/FramedImage';
+import { ThemedModal } from '@/components/ThemedModal';
 
 export default function MasjidDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { project, isLoading } = usePublishedProject(id);
+  const [privateNoticeOpen, setPrivateNoticeOpen] = React.useState(false);
   if (isLoading || !project) {
     return <View style={styles.loading}><Text style={styles.loadingText}>Loading masjid…</Text></View>;
   }
   const progress = progressFor(project);
   const isUrgent = project.status === 'Urgent';
-  const showPrivateNotice = () => Alert.alert('Masjid Real Documents', 'For privacy and security reasons, the original Masjid documents are not publicly accessible. Please contact us for further information or verification.', [{ text: 'Contact Us', onPress: () => router.push({ pathname: '/profile-section', params: { section: 'contact' } }) }, { text: 'Close', style: 'cancel' }]);
+  const showPrivateNotice = () => setPrivateNoticeOpen(true);
   return (
     <View style={styles.screen}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
@@ -37,6 +39,18 @@ export default function MasjidDetailScreen() {
           <View style={styles.section}><Text style={styles.sectionTitle}>Documents & verification</Text>{project.masjidDocuments?.length ? project.masjidDocuments.map((doc) => <Pressable key={doc.id} onPress={() => void Linking.openURL(doc.url)} style={styles.documentCard}><View style={[styles.documentIcon, { backgroundColor: '#DDF3E6' }]}><Feather name="file-text" size={19} color={colors.light.primary} /></View><View style={{ flex: 1 }}><Text style={styles.documentTitle}>{doc.title}</Text><Text style={styles.documentCopy}>Public verification document</Text></View><Feather name="external-link" size={16} color={colors.light.mutedForeground} /></Pressable>) : <View style={styles.documentCard}><View style={[styles.documentIcon, { backgroundColor: '#EEF3EF' }]}><Feather name="file-text" size={19} color={colors.light.mutedForeground} /></View><View style={{ flex: 1 }}><Text style={styles.documentTitle}>Masjid Documents</Text><Text style={styles.documentCopy}>No public document uploaded yet</Text></View></View>}<Pressable onPress={showPrivateNotice} style={styles.documentCard}><View style={[styles.documentIcon, { backgroundColor: '#FFF1D9' }]}><Feather name="lock" size={18} color="#AD7D2C" /></View><View style={{ flex: 1 }}><Text style={styles.documentTitle}>Masjid Real Documents</Text><Text style={styles.documentCopy}>Private and protected</Text></View><Feather name="chevron-right" size={17} color={colors.light.mutedForeground} /></Pressable></View>
         </View>
       </ScrollView>
+      <ThemedModal
+        visible={privateNoticeOpen}
+        title="Masjid Real Documents"
+        message="For privacy and security reasons, the original Masjid documents are not publicly accessible. Please contact us for further information or verification."
+        icon="lock"
+        primaryLabel="Contact Us"
+        onClose={() => setPrivateNoticeOpen(false)}
+        onPrimary={() => {
+          setPrivateNoticeOpen(false);
+          router.push({ pathname: '/profile-section', params: { section: 'contact' } });
+        }}
+      />
     </View>
   );
 }
