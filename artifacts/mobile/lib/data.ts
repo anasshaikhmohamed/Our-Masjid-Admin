@@ -16,6 +16,9 @@ export type Project = {
   beforeImages?: ImageSourcePropType[];
   progressImages?: ImageSourcePropType[];
   afterImages?: ImageSourcePropType[];
+  videoUrls?: string[];
+  documents?: Array<{ id: string; title: string; url: string; isPrivate: boolean }>;
+  expenses?: Array<{ id: string; title: string; amount: number; date: string | null; billUrl?: string | null; billPrivate?: boolean }>;
 };
 
 export const projects: Project[] = [

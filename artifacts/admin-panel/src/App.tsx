@@ -9,6 +9,8 @@ import {
   ChevronRight,
   FileCheck2,
   FileText,
+  FileUp,
+  Video,
   Filter,
   GalleryHorizontalEnd,
   HeartHandshake,
@@ -39,6 +41,8 @@ import {
   recordAudit,
   supabase,
   uploadPublicMedia,
+  uploadPrivateDocument,
+  deletePrivateDocument,
   type AdminProfile,
 } from '@/lib/supabase';
 import { Toaster } from '@/components/ui/toaster';
@@ -551,47 +555,30 @@ function ProjectMediaManager({ projectId, adminId }: { projectId: string; adminI
     if (result.error) setError(result.error.message);
     else setMedia((result.data ?? []) as ProjectMedia[]);
   };
-
   useEffect(() => { void load(); }, [projectId]);
 
-  const chooseFiles = (stage: ProjectMedia['stage'], selected: FileList | null) => {
-    setFiles((current) => ({ ...current, [stage]: selected ? Array.from(selected) : [] }));
-  };
+  const chooseFiles = (stage: ProjectMedia['stage'], selected: FileList | null) => setFiles((current) => ({ ...current, [stage]: selected ? Array.from(selected) : [] }));
 
   const uploadStage = async (stage: ProjectMedia['stage']) => {
     if (!supabase || !files[stage].length) return;
-    setBusyStage(stage);
-    setError('');
+    setBusyStage(stage); setError('');
     try {
       const existingCount = media.filter((item) => item.stage === stage).length;
       for (const [index, file] of files[stage].entries()) {
-        if (!file.type.startsWith('image/')) throw new Error('Only image files are supported for project media.');
+        const isVideo = file.type.startsWith('video/');
+        if (!file.type.startsWith('image/') && !isVideo) throw new Error('Please choose image or video files only.');
         const uploaded = await uploadPublicMedia('public-project-media', file, `${projectId}/${stage}`);
-        const result = await supabase.from('project_media').insert({
-          project_id: projectId,
-          media_type: 'image',
-          stage,
-          file_url: uploaded.url,
-          sort_order: existingCount + index,
-        }).select('id').single();
-        if (result.error) {
-          await deletePublicMedia('public-project-media', uploaded.path).catch(() => undefined);
-          throw result.error;
-        }
+        const result = await supabase.from('project_media').insert({ project_id: projectId, media_type: isVideo ? 'video' : 'image', stage, file_url: uploaded.url, sort_order: existingCount + index }).select('id').single();
+        if (result.error) { await deletePublicMedia('public-project-media', uploaded.path).catch(() => undefined); throw result.error; }
       }
       await recordAudit(adminId, 'upload', 'project_media', projectId, { stage, count: files[stage].length });
-      setFiles((current) => ({ ...current, [stage]: [] }));
-      await load();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to upload project media.');
-    } finally {
-      setBusyStage(null);
-    }
+      setFiles((current) => ({ ...current, [stage]: [] })); await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to upload project media.'); }
+    finally { setBusyStage(null); }
   };
 
   const removeMedia = async (item: ProjectMedia) => {
-    if (!supabase) return;
-    if (!window.confirm('Delete this project media? This cannot be undone.')) return;
+    if (!supabase || !window.confirm('Delete this project media? This cannot be undone.')) return;
     setError('');
     try {
       const marker = '/storage/v1/object/public/public-project-media/';
@@ -601,37 +588,117 @@ function ProjectMediaManager({ projectId, adminId }: { projectId: string; adminI
       if (result.error) throw result.error;
       await recordAudit(adminId, 'delete', 'project_media', item.id, { project_id: projectId, stage: item.stage });
       await load();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to delete project media.');
-    }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to delete project media.'); }
   };
 
   const stageLabels: Record<ProjectMedia['stage'], string> = { before: 'Before', progress: 'Progress', after: 'After' };
-
   return <div className="space-y-5 rounded-xl border border-border bg-muted/20 p-4">
-    <div>
-      <p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Project Media</p>
-      <h3 className="mt-1 font-display text-lg font-semibold">Before / Progress / After</h3>
-      <p className="mt-1 text-xs text-muted-foreground">Upload multiple project photos. These are stored in the public project-media bucket.</p>
-    </div>
+    <div><p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Project Media</p><h3 className="mt-1 font-display text-lg font-semibold">Before / Progress / After + Video</h3><p className="mt-1 text-xs text-muted-foreground">Upload photos and project videos into each stage. Videos are playable in the mobile app.</p></div>
     {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
     <div className="grid gap-4 lg:grid-cols-3">
       {(Object.keys(stageLabels) as ProjectMedia['stage'][]).map((stage) => {
         const stageMedia = media.filter((item) => item.stage === stage);
         return <div key={stage} className="rounded-lg border border-border bg-card p-3">
-          <div className="flex items-center justify-between gap-2">
-            <div><p className="text-sm font-semibold">{stageLabels[stage]}</p><p className="text-[11px] text-muted-foreground">{stageMedia.length} photo{stageMedia.length === 1 ? '' : 's'}</p></div>
-            <label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted">
-              <span className="flex items-center gap-1.5"><Upload size={14} /> Choose</span>
-              <input type="file" accept="image/*" multiple className="hidden" onChange={(event) => chooseFiles(stage, event.target.files)} />
-            </label>
-          </div>
-          {files[stage].length > 0 && <div className="mt-3 rounded-lg bg-secondary/60 p-2 text-xs"><p className="font-semibold">{files[stage].length} new photo{files[stage].length === 1 ? '' : 's'} selected</p><button type="button" onClick={() => void uploadStage(stage)} disabled={busyStage !== null} className="mt-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">{busyStage === stage ? 'Uploading…' : 'Upload photos'}</button></div>}
-          {stageMedia.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2">{stageMedia.map((item) => <div key={item.id} className="group relative overflow-hidden rounded-lg border border-border bg-muted"><img src={item.file_url} alt={`${stageLabels[stage]} project media`} className="aspect-square w-full object-cover" /><button type="button" onClick={() => void removeMedia(item)} className="absolute right-1.5 top-1.5 rounded-md bg-black/70 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100" aria-label="Delete project media"><X size={13} /></button></div>)}</div>}
-          {!stageMedia.length && !files[stage].length && <p className="mt-4 rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">No photos yet.</p>}
+          <div className="flex items-center justify-between gap-2"><div><p className="text-sm font-semibold">{stageLabels[stage]}</p><p className="text-[11px] text-muted-foreground">{stageMedia.length} item{stageMedia.length === 1 ? '' : 's'}</p></div>
+            <label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted"><span className="flex items-center gap-1.5"><Upload size={14} /> Choose photos / videos</span><input type="file" accept="image/*,video/*" multiple className="hidden" onChange={(event) => chooseFiles(stage, event.target.files)} /></label></div>
+          {files[stage].length > 0 && <div className="mt-3 rounded-lg bg-secondary/60 p-2 text-xs"><p className="font-semibold">{files[stage].length} item{files[stage].length === 1 ? '' : 's'} selected</p><button type="button" onClick={() => void uploadStage(stage)} disabled={busyStage !== null} className="mt-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">{busyStage === stage ? 'Uploading…' : 'Upload'}</button></div>}
+          {stageMedia.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2">{stageMedia.map((item) => <div key={item.id} className="group relative overflow-hidden rounded-lg border border-border bg-muted">{item.media_type === 'video' ? <div className="flex aspect-square items-center justify-center bg-primary/10"><div className="text-center"><Video size={24} className="mx-auto text-primary" /><p className="mt-1 text-[10px] font-semibold text-primary">Video</p></div></div> : <img src={item.file_url} alt={`${stageLabels[stage]} project media`} className="aspect-square w-full object-cover" />}<button type="button" onClick={() => void removeMedia(item)} className="absolute right-1.5 top-1.5 rounded-md bg-black/70 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100" aria-label="Delete project media"><X size={13} /></button></div>)}</div>}
+          {!stageMedia.length && !files[stage].length && <p className="mt-4 rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">No media yet.</p>}
         </div>;
       })}
     </div>
+  </div>;
+}
+
+function ProjectEvidenceManager({ projectId, adminId }: { projectId: string; adminId: string }) {
+  const [docs, setDocs] = useState<Array<{ id: string; document_type: string; file_url: string; is_private: boolean }>>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenseDocs, setExpenseDocs] = useState<Record<string, Array<{ id: string; file_url: string; is_private: boolean; document_type: string }>>>({});
+  const [qaziFile, setQaziFile] = useState<File | null>(null);
+  const [privateFile, setPrivateFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    if (!supabase) return;
+    const [docsResult, expensesResult] = await Promise.all([
+      supabase.from('project_documents').select('id,document_type,file_url,is_private').eq('project_id', projectId).order('created_at', { ascending: false }),
+      supabase.from('project_expenses').select('id,project_id,title,description,amount,expense_date').eq('project_id', projectId).order('expense_date', { ascending: false }),
+    ]);
+    if (docsResult.error) setError(docsResult.error.message); else setDocs((docsResult.data ?? []) as typeof docs);
+    if (expensesResult.error) setError(expensesResult.error.message); else setExpenses((expensesResult.data ?? []) as Expense[]);
+    const next: typeof expenseDocs = {};
+    for (const expense of (expensesResult.data ?? []) as Expense[]) {
+      const result = await supabase.from('expense_documents').select('id,file_url,is_private,document_type').eq('expense_id', expense.id).order('created_at', { ascending: false });
+      if (!result.error) next[expense.id] = (result.data ?? []) as typeof next[string];
+    }
+    setExpenseDocs(next);
+  };
+  useEffect(() => { void load(); }, [projectId]);
+
+  const uploadQazi = async () => {
+    if (!supabase || !qaziFile) return;
+    setBusy('qazi'); setError('');
+    try {
+      const oldQazi = await supabase.from('project_documents').select('id,file_url,is_private').eq('project_id', projectId).eq('document_type', 'qazi_permission');
+      for (const old of (oldQazi.data ?? []) as Array<{ id: string; file_url: string; is_private: boolean }>) {
+        const marker = '/storage/v1/object/public/public-project-media/';
+        if (!old.is_private && old.file_url.includes(marker)) await deletePublicMedia('public-project-media', decodeURIComponent(old.file_url.split(marker)[1])).catch(() => undefined);
+        await supabase.from('project_documents').delete().eq('id', old.id);
+      }
+      const uploaded = await uploadPublicMedia('public-project-media', qaziFile, `${projectId}/documents`);
+      const result = await supabase.from('project_documents').insert({ project_id: projectId, document_type: 'qazi_permission', file_url: uploaded.url, is_private: false }).select('id').single();
+      if (result.error) { await deletePublicMedia('public-project-media', uploaded.path).catch(() => undefined); throw result.error; }
+      await recordAudit(adminId, 'upload', 'project_document', result.data.id, { project_id: projectId, document_type: 'qazi_permission' });
+      setQaziFile(null); await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to upload permission letter.'); }
+    finally { setBusy(''); }
+  };
+
+  const uploadPrivate = async () => {
+    if (!supabase || !privateFile) return;
+    setBusy('document'); setError('');
+    try {
+      const uploaded = await uploadPrivateDocument(privateFile, `${projectId}/documents`);
+      const result = await supabase.from('project_documents').insert({ project_id: projectId, document_type: 'other', file_url: uploaded.path, is_private: true }).select('id').single();
+      if (result.error) { await deletePrivateDocument(uploaded.path).catch(() => undefined); throw result.error; }
+      await recordAudit(adminId, 'upload', 'project_document', result.data.id, { project_id: projectId, document_type: 'other', private: true });
+      setPrivateFile(null); await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to upload project document.'); }
+    finally { setBusy(''); }
+  };
+
+  const uploadBill = async (expenseId: string, file: File) => {
+    if (!supabase) return;
+    setBusy(`bill-${expenseId}`); setError('');
+    try {
+      const uploaded = await uploadPrivateDocument(file, `${projectId}/expenses/${expenseId}`);
+      const result = await supabase.from('expense_documents').insert({ expense_id: expenseId, document_type: 'bill', file_url: uploaded.path, is_private: true }).select('id').single();
+      if (result.error) { await deletePrivateDocument(uploaded.path).catch(() => undefined); throw result.error; }
+      await recordAudit(adminId, 'upload', 'expense_document', result.data.id, { project_id: projectId, expense_id: expenseId, document_type: 'bill' });
+      await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to upload bill.'); }
+    finally { setBusy(''); }
+  };
+
+  const deleteDoc = async (doc: typeof docs[number]) => {
+    if (!supabase || !window.confirm('Delete this document?')) return;
+    try {
+      if (doc.is_private) await deletePrivateDocument(doc.file_url).catch(() => undefined);
+      const result = await supabase.from('project_documents').delete().eq('id', doc.id); if (result.error) throw result.error;
+      await recordAudit(adminId, 'delete', 'project_document', doc.id, { project_id: projectId }); await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to delete document.'); }
+  };
+
+  return <div className="space-y-5 rounded-xl border border-border bg-muted/20 p-4">
+    <div><p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Documents & bills</p><h3 className="mt-1 font-display text-lg font-semibold">Permission letter, documents and expense bills</h3><p className="mt-1 text-xs text-muted-foreground">Available for both ongoing and completed projects. Qazi permission is public; supporting records and bills stay private.</p></div>
+    {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+    <div className="grid gap-4 lg:grid-cols-2">
+      <div className="rounded-lg border border-border bg-card p-3"><p className="text-sm font-semibold">Qazi-e-Shaher Permission Letter</p><p className="mt-1 text-[11px] text-muted-foreground">Public verification document (PDF/image)</p><div className="mt-3 flex items-center gap-2"><label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold"><span className="flex items-center gap-1.5"><FileUp size={14}/> {qaziFile ? qaziFile.name : 'Choose file'}</span><input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setQaziFile(e.target.files?.[0] ?? null)} /></label><Button onClick={() => void uploadQazi()} disabled={!qaziFile || busy !== ''}>{busy === 'qazi' ? 'Uploading…' : 'Upload / replace'}</Button></div></div>
+      <div className="rounded-lg border border-border bg-card p-3"><p className="text-sm font-semibold">Private Project Document</p><p className="mt-1 text-[11px] text-muted-foreground">Support letters, verification or other evidence</p><div className="mt-3 flex items-center gap-2"><label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold"><span className="flex items-center gap-1.5"><FileUp size={14}/> {privateFile ? privateFile.name : 'Choose file'}</span><input type="file" accept="image/*,.pdf,.doc,.docx" className="hidden" onChange={(e) => setPrivateFile(e.target.files?.[0] ?? null)} /></label><Button onClick={() => void uploadPrivate()} disabled={!privateFile || busy !== ''}>{busy === 'document' ? 'Uploading…' : 'Upload'}</Button></div></div>
+    </div>
+    <div className="rounded-lg border border-border bg-card p-3"><p className="text-sm font-semibold">Current project documents</p><div className="mt-3 space-y-2">{docs.map((doc) => <div key={doc.id} className="flex items-center justify-between gap-3 rounded-lg bg-muted/40 p-3"><div><p className="text-xs font-semibold">{doc.document_type === 'qazi_permission' ? 'Qazi-e-Shaher Permission Letter' : 'Private Project Document'}</p><p className="text-[10px] text-muted-foreground">{doc.is_private ? 'Private' : 'Public'}</p></div><button type="button" onClick={() => void deleteDoc(doc)} className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><X size={14}/></button></div>)}{!docs.length && <p className="text-xs text-muted-foreground">No project documents uploaded yet.</p>}</div></div>
+    <div className="rounded-lg border border-border bg-card p-3"><p className="text-sm font-semibold">Expense bills / invoices</p><div className="mt-3 space-y-2">{expenses.map((expense) => <div key={expense.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/40 p-3"><div><p className="text-xs font-semibold">{expense.title}</p><p className="text-[10px] text-muted-foreground">{formatMoney(expense.amount)} · {expense.expense_date || 'No date'}</p></div><label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold"><span className="flex items-center gap-1.5"><Upload size={13}/> {(expenseDocs[expense.id] ?? []).length ? 'Replace / add bill' : 'Upload bill'}</span><input type="file" accept="image/*,.pdf" className="hidden" disabled={busy !== ''} onChange={(e) => { const file=e.target.files?.[0]; if(file) void uploadBill(expense.id,file); }} /></label></div>)}{!expenses.length && <p className="text-xs text-muted-foreground">No expenses recorded for this project yet. Add expenses from the Expenses page, then return here to upload their bills.</p>}</div></div>
   </div>;
 }
 
@@ -650,7 +717,7 @@ function ProjectForm({ initial, categories, masjids, onDone, onCancel, adminId }
       onDone();
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save project.'); } finally { setBusy(false); }
   };
-  return <form onSubmit={submit} className="space-y-4">{error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}<div className="grid gap-4 sm:grid-cols-2"><Input label="Title" value={form.title} onChange={(value) => setForm({ ...form, title: value })} required /><Select label="Masjid" value={form.masjid_id} onChange={(value) => setForm({ ...form, masjid_id: value })} options={masjids.map((masjid) => ({ value: masjid.id, label: masjid.name }))} /><Select label="Category" value={form.category_id} onChange={(value) => setForm({ ...form, category_id: value })} options={[{ value: '', label: 'No category' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><Select label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value as Project['status'] })} options={[{ value: 'draft', label: 'Draft' }, { value: 'ongoing', label: 'Ongoing' }, { value: 'completed', label: 'Completed' }, { value: 'hidden', label: 'Hidden' }]} /><Input label="Target amount" value={form.target_amount} onChange={(value) => setForm({ ...form, target_amount: value })} type="number" min="0" step="0.01" /><Input label="Raised amount (verified only)" value={form.raised_amount} onChange={(value) => setForm({ ...form, raised_amount: value })} type="number" min="0" step="0.01" /><Input label="Total expense (verified only)" value={form.total_expense} onChange={(value) => setForm({ ...form, total_expense: value })} type="number" min="0" step="0.01" /></div><Textarea label="Short description" value={form.short_description} onChange={(value) => setForm({ ...form, short_description: value })} /><Textarea label="Full description / work completed" value={form.full_description} onChange={(value) => setForm({ ...form, full_description: value })} rows={5} /><div className="grid gap-2 sm:grid-cols-2"><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><Toggle label="Featured" checked={form.featured} onChange={(checked) => setForm({ ...form, featured: checked })} /></div>{initial?.id && <ProjectMediaManager projectId={initial.id} adminId={adminId} />}<FormActions busy={busy} onCancel={onCancel} /></form>;
+  return <form onSubmit={submit} className="space-y-4">{error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}<div className="grid gap-4 sm:grid-cols-2"><Input label="Title" value={form.title} onChange={(value) => setForm({ ...form, title: value })} required /><Select label="Masjid" value={form.masjid_id} onChange={(value) => setForm({ ...form, masjid_id: value })} options={masjids.map((masjid) => ({ value: masjid.id, label: masjid.name }))} /><Select label="Category" value={form.category_id} onChange={(value) => setForm({ ...form, category_id: value })} options={[{ value: '', label: 'No category' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><Select label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value as Project['status'] })} options={[{ value: 'draft', label: 'Draft' }, { value: 'ongoing', label: 'Ongoing' }, { value: 'completed', label: 'Completed' }, { value: 'hidden', label: 'Hidden' }]} /><Input label="Target amount" value={form.target_amount} onChange={(value) => setForm({ ...form, target_amount: value })} type="number" min="0" step="0.01" /><Input label="Raised amount (verified only)" value={form.raised_amount} onChange={(value) => setForm({ ...form, raised_amount: value })} type="number" min="0" step="0.01" /><Input label="Total expense (verified only)" value={form.total_expense} onChange={(value) => setForm({ ...form, total_expense: value })} type="number" min="0" step="0.01" /></div><Textarea label="Short description" value={form.short_description} onChange={(value) => setForm({ ...form, short_description: value })} /><Textarea label="Full description / work completed" value={form.full_description} onChange={(value) => setForm({ ...form, full_description: value })} rows={5} /><div className="grid gap-2 sm:grid-cols-2"><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><Toggle label="Featured" checked={form.featured} onChange={(checked) => setForm({ ...form, featured: checked })} /></div>{initial?.id && <><ProjectMediaManager projectId={initial.id} adminId={adminId} /><ProjectEvidenceManager projectId={initial.id} adminId={adminId} /></>}<FormActions busy={busy} onCancel={onCancel} /></form>;
 }
 
 function ProjectsPage() {

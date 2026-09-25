@@ -75,3 +75,20 @@ export async function uploadPublicMedia(
   if (error) throw error;
   return { path, url: publicStorageUrl(bucket, path) };
 }
+export async function uploadPrivateDocument(file: File, folder: string) {
+  if (!supabase) throw new Error('Supabase is not configured for the admin panel.');
+  const safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+  const path = `${folder}/${crypto.randomUUID()}-${safeName}`;
+  const { error } = await supabase.storage.from('private-documents').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  });
+  if (error) throw error;
+  return { path };
+}
+
+export async function deletePrivateDocument(path: string) {
+  if (!supabase) throw new Error('Supabase is not configured for the admin panel.');
+  const { error } = await supabase.storage.from('private-documents').remove([path]);
+  if (error) throw error;
+}

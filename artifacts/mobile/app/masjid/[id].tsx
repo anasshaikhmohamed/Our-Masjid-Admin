@@ -12,7 +12,10 @@ import { FramedImage } from '@/components/FramedImage';
 export default function MasjidDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const { project } = usePublishedProject(id);
+  const { project, isLoading } = usePublishedProject(id);
+  if (isLoading || !project) {
+    return <View style={styles.loading}><Text style={styles.loadingText}>Loading masjid…</Text></View>;
+  }
   const progress = progressFor(project);
   const isUrgent = project.status === 'Urgent';
   const showPrivateNotice = () => Alert.alert('Masjid Real Documents', 'For privacy and security reasons, the original Masjid documents are not publicly accessible. Please contact us for further information or verification.', [{ text: 'Contact Us', onPress: () => router.push({ pathname: '/profile-section', params: { section: 'contact' } }) }, { text: 'Close', style: 'cancel' }]);
@@ -39,6 +42,8 @@ export default function MasjidDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.light.background },
+  loading: { flex: 1, backgroundColor: colors.light.background, alignItems: 'center', justifyContent: 'center' },
+  loadingText: { color: colors.light.mutedForeground, fontSize: 12 },
   content: { paddingBottom: 45 },
   imageWrap: { height: 205, position: 'relative', backgroundColor: '#EDF4EF' },
   heroImage: { width: '100%', height: '100%' },

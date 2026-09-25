@@ -34,6 +34,8 @@ type PublicProjectRow = {
     image_url: string | null;
   } | null;
   project_media: PublicProjectMediaRow[] | null;
+  project_expenses: Array<{ id: string; title: string; amount: number | string; expense_date: string | null; expense_documents: Array<{ id: string; document_type: string; file_url: string; is_private: boolean }> | null }> | null;
+  project_documents: Array<{ id: string; document_type: string; file_url: string; is_private: boolean }> | null;
 };
 
 type PublicSlideRow = {
@@ -65,12 +67,31 @@ function mediaSources(rows: PublicProjectMediaRow[] | null | undefined, stage: P
     .map((item) => ({ uri: item.file_url } as ImageSourcePropType));
 }
 
+
+function videoSources(rows: PublicProjectMediaRow[] | null | undefined) {
+  return (rows ?? [])
+    .filter((item) => item.media_type === 'video' && !!item.file_url)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((item) => item.file_url);
+}
+
 function toProject(row: PublicProjectRow): Project {
   const target = Number(row.target_amount);
   const raised = Number(row.raised_amount);
   const beforeImages = mediaSources(row.project_media, 'before');
   const progressImages = mediaSources(row.project_media, 'progress');
   const afterImages = mediaSources(row.project_media, 'after');
+  const videoUrls = videoSources(row.project_media);
+  const documents = (row.project_documents ?? []).map((doc) => ({
+    id: doc.id,
+    title: doc.document_type === 'qazi_permission' ? 'Qazi-e-Shaher Permission Letter' : doc.document_type === 'support_letter' ? 'Support Letter' : doc.document_type === 'verification' ? 'Verification Document' : 'Project Document',
+    url: doc.file_url,
+    isPrivate: doc.is_private,
+  }));
+  const expenses = (row.project_expenses ?? []).map((expense) => {
+    const bill = (expense.expense_documents ?? []).find((doc) => doc.document_type === 'bill' || doc.document_type === 'invoice');
+    return { id: expense.id, title: expense.title, amount: Number(expense.amount), date: expense.expense_date, billUrl: bill?.file_url ?? null, billPrivate: bill?.is_private ?? true };
+  });
   const fallbackImage = row.masjid?.image_url
     ? ({ uri: row.masjid.image_url } as ImageSourcePropType)
     : localImageFor(row.id) ?? localProjects[0].image;
@@ -95,6 +116,9 @@ function toProject(row: PublicProjectRow): Project {
     beforeImages,
     progressImages,
     afterImages,
+    videoUrls,
+    documents,
+    expenses,
     verification: 'Published by Our Masjid',
   };
 }
@@ -120,7 +144,7 @@ async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
   const { data, error } = await supabase
     .from('projects')
     .select(
-      'id,title,short_description,full_description,target_amount,raised_amount,status,featured,category:categories(name),masjid:masjids(name,location,city,is_urgent,image_url),project_media(id,media_type,stage,file_url,caption,sort_order)',
+      'id,title,short_description,full_description,target_amount,raised_amount,status,featured,category:categories(name),masjid:masjids(name,location,city,is_urgent,image_url),project_media(id,media_type,stage,file_url,caption,sort_order),project_documents(id,document_type,file_url,is_private),project_expenses(id,title,amount,expense_date,expense_documents(id,document_type,file_url,is_private))',
     )
     .eq('published', true)
     .neq('status', 'hidden')
@@ -154,7 +178,7 @@ export function usePublishedProject(id: string | undefined) {
   const query = usePublishedProjects();
   return {
     ...query,
-    project: query.data?.projects.find((item) => item.id === id) ?? localProjects[0],
+    project: query.data?.projects.find((item) => item.id === id),
   };
 }
 
