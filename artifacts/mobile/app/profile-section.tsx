@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '@/constants/colors';
 import { EmptyState, InfoRow, Pill, ProjectCard } from '@/components/Ui';
 import { usePublishedProjects } from '@/lib/content';
 import { AppNotification, fetchNotifications, markNotificationsRead } from '@/lib/notifications';
+import { loadSavedMasjidIds, toggleSavedMasjid } from '@/lib/saved';
 
 const titles: Record<string, string> = { donations: 'My Donations', history: 'Donation History', saved: 'Saved Masjids', notifications: 'Notifications', auto: 'Auto Sadqa', about: 'About Our Masjid', contact: 'Contact Us' };
 
@@ -20,31 +21,30 @@ export default function ProfileSectionScreen() {
   const { data } = usePublishedProjects();
   const liveProjects = data?.projects ?? [];
   useEffect(() => {
-    if (section === 'auto') {
-      AsyncStorage.getItem('autoPayConfig').then((value) => {
-        if (value) {
-          const config = JSON.parse(value) as { projectName?: string; amount?: number; frequency?: string; status?: string };
-          setAutoConfig(config);
-          setEnabled(config.status === 'active');
-          setFrequency(config.frequency ?? 'Monthly');
-        }
-      });
-    }
-    if (section === 'saved') {
-      AsyncStorage.getItem('savedMasjids').then((value) => {
-        if (value) setSavedIds(JSON.parse(value) as string[]);
-      });
-    }
+    if (section !== 'auto') return;
+    AsyncStorage.getItem('autoPayConfig').then((value) => {
+      if (value) {
+        const config = JSON.parse(value) as { projectName?: string; amount?: number; frequency?: string; status?: string };
+        setAutoConfig(config);
+        setEnabled(config.status === 'active');
+        setFrequency(config.frequency ?? 'Monthly');
+      }
+    });
   }, [section]);
+  useFocusEffect(React.useCallback(() => {
+    if (section !== 'saved') return undefined;
+    let active = true;
+    void loadSavedMasjidIds().then((ids) => { if (active) setSavedIds(ids); });
+    return () => { active = false; };
+  }, [section]));
   const cancelAutoPay = async () => {
     await AsyncStorage.removeItem('autoPayConfig');
     setAutoConfig(null);
     setEnabled(false);
   };
   const toggleSaved = async (id: string) => {
-    const next = savedIds.includes(id) ? savedIds.filter((savedId) => savedId !== id) : [...savedIds, id];
+    const next = await toggleSavedMasjid(id);
     setSavedIds(next);
-    await AsyncStorage.setItem('savedMasjids', JSON.stringify(next));
   };
   return (
     <View style={styles.screen}>
@@ -70,7 +70,7 @@ function NotificationsSummary() {
     return () => { active = false; };
   }, []);
   if (!rows.length) return <EmptyState title="You’re all caught up" body="Announcements and important updates from Our Masjid will appear here." />;
-  return <View>{rows.map((item) => <View key={item.id} style={styles.notificationCard}><View style={styles.notificationIcon}><Feather name="megaphone" size={16} color={colors.light.primary} /></View><View style={{ flex: 1 }}><Text style={styles.notificationTitle}>{item.title}</Text><Text style={styles.notificationDate}>{new Date(item.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</Text><Text style={styles.notificationBody}>{item.body}</Text></View></View>)}</View>;
+  return <View>{rows.map((item) => <View key={item.id} style={styles.notificationCard}><View style={styles.notificationIcon}><Feather name="bell" size={16} color={colors.light.primary} /></View><View style={{ flex: 1 }}><Text style={styles.notificationTitle}>{item.title}</Text><Text style={styles.notificationDate}>{new Date(item.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</Text><Text style={styles.notificationBody}>{item.body}</Text></View></View>)}</View>;
 }
 
 function About() {
@@ -126,5 +126,10 @@ const styles = StyleSheet.create({
   frequencyTextActive: { color: colors.light.primary, fontWeight: '600' },
   autoNotice: { color: '#8B6C2A', backgroundColor: '#FFF7E5', borderRadius: 10, padding: 10, fontSize: 10, lineHeight: 15, marginTop: 17 },
   cancelButton: { minHeight: 40, borderRadius: 11, backgroundColor: '#FFF0F1', alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+  notificationCard: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, marginBottom: 10, borderRadius: 12, backgroundColor: colors.light.card, },
+  notificationIcon: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.light.background, },
+  notificationTitle: { fontSize: 14, fontWeight: "700", color: colors.light.text, },
+  notificationDate: { fontSize: 11, color: colors.light.muted, marginTop: 2, },
+  notificationBody: { fontSize: 13, color: colors.light.secondary, marginTop: 5, lineHeight: 18, },
   cancelText: { color: '#9E2630', fontSize: 11, fontWeight: '600' },
 });

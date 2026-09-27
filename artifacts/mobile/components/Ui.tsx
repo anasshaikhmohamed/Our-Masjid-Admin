@@ -73,36 +73,18 @@ export function Pill({
 
 export function HeroCarousel() {
   const { data: remoteSlides, isLoading: slidesLoading } = usePublishedHomeSlides();
-  const fallbackSlides = [
-    {
-      image: require('@/assets/images/masjid-hero.jpg'),
-      title: 'Future For You',
-      copy: 'Support your masjid and help build a better future together.',
-    },
-    {
-      image: require('@/assets/images/masjid-exterior.jpg'),
-      title: 'Our Masjid',
-      copy: 'Support the places that serve our communities.',
-    },
-    {
-      image: require('@/assets/images/masjid-interior.jpg'),
-      title: 'Support Your Masjid',
-      copy: 'Follow the work with transparency at every step.',
-    },
-  ];
-
+  const fallbackImage = require('@/assets/images/masjid-hero.jpg');
 
   if (slidesLoading && !remoteSlides?.length) {
     return <View style={styles.heroWrap} />;
   }
+  if (!remoteSlides?.length) return null;
 
-  const slides = remoteSlides?.length
-    ? remoteSlides.map((slide) => ({
-        image: slide.image_url ? ({ uri: slide.image_url } as ImageSourcePropType) : fallbackSlides[0].image,
-        title: slide.title,
-        copy: slide.subtitle ?? '',
-      }))
-    : fallbackSlides;
+  const slides = remoteSlides.map((slide) => ({
+    image: slide.image_url ? ({ uri: slide.image_url } as ImageSourcePropType) : fallbackImage,
+    title: slide.title,
+    copy: slide.subtitle ?? '',
+  }));
 
   return (
     <View style={styles.heroWrap}>
@@ -117,7 +99,7 @@ export function HeroCarousel() {
           <View style={styles.heroSlide} key={`${slide.title}-${index}`}>
             <FramedImage
               source={slide.image}
-              fallbackSource={fallbackSlides[index % fallbackSlides.length].image}
+              fallbackSource={fallbackImage}
               style={styles.heroImage}
             />
             <View style={styles.heroShade} />

@@ -89,7 +89,7 @@ function toProject(
   const documents = projectDocs.map((doc) => ({ id: doc.id, title: documentTitle(doc.document_type), url: doc.file_url, isPrivate: doc.is_private }));
   const projectExpenses = expenses.map((expense) => {
     const bill = expenseDocs.find((doc) => doc.expense_id === expense.id && (doc.document_type === 'bill' || doc.document_type === 'invoice'));
-    return { id: expense.id, title: expense.title, amount: Number(expense.amount), date: expense.expense_date, billUrl: bill?.file_url ?? null, billPrivate: bill?.is_private ?? true };
+    return { id: expense.id, title: expense.title, amount: Number(expense.amount), date: expense.expense_date, billUrl: bill?.file_url ?? null, billPrivate: bill?.is_private ?? false };
   });
   const fallbackImage = masjid?.image_url ? ({ uri: masjid.image_url } as ImageSourcePropType) : localImageFor(row.id) ?? localProjects[0].image;
   return {

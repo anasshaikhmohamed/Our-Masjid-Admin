@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router, useFocusEffect } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '@/constants/colors';
 import { usePublishedProjects } from '@/lib/content';
 import { AppHeader, ProjectCard } from '@/components/Ui';
+import { loadSavedMasjidIds, toggleSavedMasjid } from '@/lib/saved';
 
 const filters = ['All', 'Urgent', 'Renovation', 'Construction', 'Electrical', 'Plumbing', 'Roofing'];
 export default function MasjidsScreen() {
@@ -15,21 +15,20 @@ export default function MasjidsScreen() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('All');
   const [savedIds, setSavedIds] = useState<string[]>([]);
-  useEffect(() => {
-    AsyncStorage.getItem('savedMasjids').then((saved) => {
-      if (saved) setSavedIds(JSON.parse(saved) as string[]);
-    });
-  }, []);
+  useFocusEffect(React.useCallback(() => {
+    let active = true;
+    void loadSavedMasjidIds().then((ids) => { if (active) setSavedIds(ids); });
+    return () => { active = false; };
+  }, []));
   const toggleSaved = async (id: string) => {
-    const next = savedIds.includes(id) ? savedIds.filter((savedId) => savedId !== id) : [...savedIds, id];
+    const next = await toggleSavedMasjid(id);
     setSavedIds(next);
-    await AsyncStorage.setItem('savedMasjids', JSON.stringify(next));
   };
   const filteredProjects = useMemo(() => projects.filter((project) => {
     const matchesSearch = `${project.name} ${project.location}`.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === 'All' || (filter === 'Urgent' && project.status === 'Urgent') || project.category === filter;
     return matchesSearch && matchesFilter;
-  }), [search, filter]);
+  }), [projects, search, filter]);
 
   return (
     <View style={styles.screen}>

@@ -35,7 +35,7 @@ export default function NotificationsScreen() {
         >
           {rows.length ? rows.map((item) => (
             <View key={item.id} style={styles.card}>
-              <View style={styles.icon}><Feather name="megaphone" size={17} color={colors.light.primary} /></View>
+              <View style={styles.icon}><Feather name="bell" size={17} color={colors.light.primary} /></View>
               <View style={styles.copy}>
                 <Text style={styles.cardTitle}>{item.title}</Text>
                 <Text style={styles.date}>{new Date(item.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
