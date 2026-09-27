@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import colors from '@/constants/colors';
 import { EmptyState, InfoRow, Pill, ProjectCard } from '@/components/Ui';
-import { projects } from '@/lib/data';
+import { usePublishedProjects } from '@/lib/content';
 import { AppNotification, fetchNotifications, markNotificationsRead } from '@/lib/notifications';
 
 const titles: Record<string, string> = { donations: 'My Donations', history: 'Donation History', saved: 'Saved Masjids', notifications: 'Notifications', auto: 'Auto Sadqa', about: 'About Our Masjid', contact: 'Contact Us' };
@@ -17,6 +17,8 @@ export default function ProfileSectionScreen() {
   const [frequency, setFrequency] = useState('Monthly');
   const [autoConfig, setAutoConfig] = useState<{ projectName?: string; amount?: number; frequency?: string; status?: string } | null>(null);
   const [savedIds, setSavedIds] = useState<string[]>([]);
+  const { data } = usePublishedProjects();
+  const liveProjects = data?.projects ?? [];
   useEffect(() => {
     if (section === 'auto') {
       AsyncStorage.getItem('autoPayConfig').then((value) => {
@@ -51,7 +53,7 @@ export default function ProfileSectionScreen() {
         {section === 'about' ? <About /> : null}
         {section === 'contact' ? <Contact /> : null}
         {section === 'auto' ? <AutoSadqa enabled={enabled} setEnabled={setEnabled} frequency={frequency} setFrequency={setFrequency} existing={autoConfig} onCancel={cancelAutoPay} /> : null}
-        {section === 'saved' ? <SavedMasjids savedIds={savedIds} onToggleSave={toggleSaved} /> : null}
+        {section === 'saved' ? <SavedMasjids savedIds={savedIds} projects={liveProjects} onToggleSave={toggleSaved} /> : null}
         {section === 'notifications' ? <NotificationsSummary /> : null}
         {['donations', 'history'].includes(section) ? <EmptyState title="You haven't made any donations yet" body="Your activity will appear here once you get started." /> : null}
       </ScrollView>
@@ -83,7 +85,7 @@ function ContactAction({ icon, title, value, onPress }: { icon: keyof typeof Fea
   return <Pressable onPress={onPress} style={({ pressed }) => [styles.contactAction, pressed && { opacity: 0.84 }]}><View style={styles.contactActionIcon}><Feather name={icon} size={17} color={colors.light.primary} /></View><View style={{ flex: 1 }}><Text style={styles.contactActionTitle}>{title}</Text><Text style={styles.contactActionValue}>{value}</Text></View><Feather name="arrow-up-right" size={16} color={colors.light.primary} /></Pressable>;
 }
 
-function SavedMasjids({ savedIds, onToggleSave }: { savedIds: string[]; onToggleSave: (id: string) => void }) {
+function SavedMasjids({ savedIds, projects, onToggleSave }: { savedIds: string[]; projects: import('@/lib/data').Project[]; onToggleSave: (id: string) => void }) {
   const savedProjects = projects.filter((project) => savedIds.includes(project.id));
   if (!savedProjects.length) return <EmptyState title="No saved Masjids yet" body="Save a project to follow its progress here." />;
   return <View>{savedProjects.map((project) => <ProjectCard key={project.id} project={project} isSaved onToggleSave={() => onToggleSave(project.id)} onPress={() => router.push({ pathname: '/masjid/[id]', params: { id: project.id } })} />)}</View>;

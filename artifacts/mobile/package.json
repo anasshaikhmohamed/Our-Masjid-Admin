@@ -54,7 +54,8 @@
     "zod": "catalog:",
     "zod-validation-error": "^3.4.0",
     "expo-notifications": "~57.0.20",
-    "expo-video": "~57.0.4"
+    "expo-video": "~57.0.4",
+    "react-native-webview": "13.16.0"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.57.4"

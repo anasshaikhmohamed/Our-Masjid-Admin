@@ -72,7 +72,7 @@ export function Pill({
 }
 
 export function HeroCarousel() {
-  const { data: remoteSlides } = usePublishedHomeSlides();
+  const { data: remoteSlides, isLoading: slidesLoading } = usePublishedHomeSlides();
   const fallbackSlides = [
     {
       image: require('@/assets/images/masjid-hero.jpg'),
@@ -91,6 +91,10 @@ export function HeroCarousel() {
     },
   ];
 
+
+  if (slidesLoading && !remoteSlides?.length) {
+    return <View style={styles.heroWrap} />;
+  }
 
   const slides = remoteSlides?.length
     ? remoteSlides.map((slide) => ({

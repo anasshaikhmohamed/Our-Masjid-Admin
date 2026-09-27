@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -38,19 +38,22 @@ export default function MasjidsScreen() {
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.list}
-        ListHeaderComponent={
+        ListHeaderComponent={() => (
           <>
             <AppHeader title="Masjids" right={<View style={styles.activeBadge}><MaterialCommunityIcons name="mosque" size={14} color={colors.light.primary} /><Text style={styles.activeBadgeText}>{activeProjectCount} Active</Text></View>} />
             <View style={styles.searchBox}><Feather name="search" size={18} color={colors.light.mutedForeground} /><TextInput value={search} onChangeText={setSearch} placeholder="Search masjid or location..." placeholderTextColor={colors.light.mutedForeground} style={styles.searchInput} /></View>
-            <FlatList horizontal data={filters} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList} renderItem={({ item }) => (
-              <Pressable onPress={() => setFilter(item)} style={[styles.filterChip, item === 'Urgent' && styles.filterChipUrgent, filter === item && styles.filterChipActive, filter === item && item === 'Urgent' && styles.filterChipUrgentActive]}>
-                {item === 'All' ? <MaterialCommunityIcons name="view-grid-outline" size={14} color={filter === item ? colors.light.primary : colors.light.mutedForeground} /> : null}
-                <Text style={[styles.filterText, item === 'Urgent' && styles.urgentFilterText, filter === item && styles.filterTextActive, filter === item && item === 'Urgent' && styles.urgentFilterTextActive]}>{item}</Text>
-              </Pressable>
-            )} />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterList}>
+              {filters.map((item) => (
+                <Pressable key={item} onPress={() => setFilter(item)} style={[styles.filterChip, item === 'Urgent' && styles.filterChipUrgent, filter === item && styles.filterChipActive, filter === item && item === 'Urgent' && styles.filterChipUrgentActive]}>
+                  {item === 'All' ? <MaterialCommunityIcons name="view-grid-outline" size={14} color={filter === item ? colors.light.primary : colors.light.mutedForeground} /> : null}
+                  <Text style={[styles.filterText, item === 'Urgent' && styles.urgentFilterText, filter === item && styles.filterTextActive, filter === item && item === 'Urgent' && styles.urgentFilterTextActive]}>{item}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
             <Text style={styles.resultText}>{filteredProjects.length} masjids found</Text>
           </>
-        }
+        )}
+        extraData={`${filter}|${search}|${projects.length}|${savedIds.join(',')}`}
         renderItem={({ item }) => <ProjectCard project={item} isSaved={savedIds.includes(item.id)} onToggleSave={() => toggleSaved(item.id)} onPress={() => router.push({ pathname: '/masjid/[id]', params: { id: item.id } })} />}
         ListEmptyComponent={<View style={{ marginTop: 18 }}><Text style={styles.emptyText}>No Masjids match your search.</Text></View>}
       />

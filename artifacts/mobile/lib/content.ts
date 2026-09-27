@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+
 import { useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ImageSourcePropType } from 'react-native';
@@ -134,7 +134,7 @@ async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
     .neq('status', 'hidden')
     .order('featured', { ascending: false })
     .order('created_at', { ascending: false });
-  if (core.error) return (await readCachedProjects()) ?? Promise.reject(core.error);
+  if (core.error) return (await readCachedProjects()) ?? { projects: [], source: 'cache' };
 
   const rows = (core.data ?? []) as CoreProjectRow[];
   if (!rows.length) return (await readCachedProjects()) ?? { projects: [], source: 'supabase' };
@@ -181,13 +181,11 @@ async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
 }
 
 export function usePublishedProjects() {
-  const [cachedData, setCachedData] = useState<PublishedProjectsResult | null>(null);
-  useEffect(() => { void readCachedProjects().then(setCachedData); }, []);
   const query = useQuery({ queryKey: ['our-masjid', 'published-projects'], queryFn: fetchPublishedProjects, staleTime: 60_000, retry: false });
-  // Never let an empty online response replace a known-good cached dataset.
-  // This prevents a temporary RLS/API response from turning the whole app blank.
-  const data = query.data?.projects?.length ? query.data : cachedData ?? query.data;
-  return { ...query, data };
+  // Do not render the old cache before the first online request completes.
+  // fetchPublishedProjects returns the cache only when Supabase is unavailable/errors,
+  // so offline mode still works without flashing stale/demo data on startup.
+  return { ...query, data: query.data };
 }
 
 export function usePublishedProject(id: string | undefined) {
@@ -210,8 +208,6 @@ async function readCachedHomeSlides(): Promise<PublicSlideRow[]> {
 }
 
 export function usePublishedHomeSlides() {
-  const [cachedSlides, setCachedSlides] = useState<PublicSlideRow[] | null>(null);
-  useEffect(() => { void readCachedHomeSlides().then(setCachedSlides); }, []);
   const query = useQuery({
     queryKey: ['our-masjid', 'home-slides'],
     queryFn: async (): Promise<PublicSlideRow[]> => {
@@ -225,7 +221,5 @@ export function usePublishedHomeSlides() {
     staleTime: 60_000,
     retry: false,
   });
-  // Keep the last known-good slides visible if an online request temporarily returns no rows.
-  const data = query.data?.length ? query.data : cachedSlides ?? query.data ?? [];
-  return { ...query, data };
+  return { ...query, data: query.data };
 }
