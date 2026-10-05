@@ -161,6 +161,7 @@ const navItems = [
   { href: '/categories', label: 'Categories', icon: SlidersHorizontal },
   { href: '/slides', label: 'Home slides', icon: GalleryHorizontalEnd },
   { href: '/donations', label: 'Donations', icon: WalletCards },
+  { href: '/teacher-bookings', label: 'Teacher Bookings', icon: Users },
   { href: '/notifications', label: 'Notifications', icon: Megaphone },
   { href: '/documents', label: 'Documents', icon: FileCheck2 },
   { href: '/audit-logs', label: 'Audit logs', icon: Activity },
@@ -542,11 +543,11 @@ function MasjidEvidenceManager({ masjidId, adminId }: { masjidId: string; adminI
           const marker = '/storage/v1/object/public/public-masjid-media/';
           if (existing.file_url.includes(marker)) await deletePublicMedia('public-masjid-media', decodeURIComponent(existing.file_url.split(marker)[1])).catch(() => undefined);
         }
-        const result = await supabase.from('masjid_documents').update({ document_type: type, file_url: isPrivate ? uploaded.path : uploaded.url, is_private: isPrivate }).eq('id', existing.id).select('id').single();
+        const result = await supabase.from('masjid_documents').update({ document_type: type, file_url: isPrivate ? uploaded.path : publicStorageUrl('public-masjid-media', uploaded.path), is_private: isPrivate }).eq('id', existing.id).select('id').single();
         if (result.error) throw result.error;
         await recordAudit(adminId, 'update', 'masjid_document', existing.id, { masjid_id: masjidId, document_type: type, private: isPrivate });
       } else {
-        const result = await supabase.from('masjid_documents').insert({ masjid_id: masjidId, document_type: type, file_url: isPrivate ? uploaded.path : uploaded.url, is_private: isPrivate }).select('id').single();
+        const result = await supabase.from('masjid_documents').insert({ masjid_id: masjidId, document_type: type, file_url: isPrivate ? uploaded.path : publicStorageUrl('public-masjid-media', uploaded.path), is_private: isPrivate }).select('id').single();
         if (result.error) throw result.error;
         await recordAudit(adminId, 'upload', 'masjid_document', result.data.id, { masjid_id: masjidId, document_type: type, private: isPrivate });
       }
@@ -1080,14 +1081,251 @@ async function sendExpoAnnouncement(title: string, body: string, tokens: string[
   }
   return accepted;
 }
+function TeacherBookingsPage() {
+  type TeacherBooking = {
+    id: string;
+    name: string;
+    address: string;
+    teacher_name: string;
+    qualification: string;
+    status: string;
+    admin_notes: string | null;
+    created_at: string;
+    updated_at: string;
+  };
 
+  const resource = useResource(
+    () =>
+      selectRows<TeacherBooking>(
+        'teacher_bookings',
+        'id,name,address,teacher_name,qualification,status,admin_notes,created_at,updated_at',
+        'created_at'
+      ),
+    'teacher-bookings'
+  );
+
+  const [editing, setEditing] = useState<TeacherBooking | null>(null);
+  const [editStatus, setEditStatus] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [actionBusy, setActionBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const openEdit = (booking: TeacherBooking) => {
+    setEditing(booking);
+    setEditStatus(booking.status || '');
+    setEditNotes(booking.admin_notes || '');
+    setError('');
+    setSuccess('');
+  };
+
+  const saveEdit = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (!supabase || !editing) return;
+
+    setActionBusy(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const result = await supabase
+        .from('teacher_bookings')
+        .update({
+          status: editStatus.trim(),
+          admin_notes: editNotes.trim() || null,
+        })
+        .eq('id', editing.id);
+
+      if (result.error) throw result.error;
+
+      setEditing(null);
+      setSuccess('Booking updated successfully.');
+      resource.reload();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'Unable to update booking.'
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  return (
+    <div className="page-enter">
+      <SectionHeading
+        eyebrow="Teacher management"
+        title="Teacher Bookings"
+        description="Review teacher booking requests submitted from the Our Masjid app."
+        action={
+          <Button onClick={() => resource.reload()}>
+            <RefreshCw size={16} />
+            Refresh
+          </Button>
+        }
+      />
+
+      {error && (
+        <div className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="mb-4 rounded-lg bg-secondary p-3 text-sm text-primary">
+          {success}
+        </div>
+      )}
+
+      <QueryState
+        loading={resource.loading}
+        error={resource.error}
+        onRetry={resource.reload}
+        label="teacher bookings"
+      >
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="hidden grid-cols-[1fr_1fr_1fr_.8fr_.8fr] gap-4 border-b border-border bg-muted/50 px-5 py-3 font-mono-ui text-[10px] uppercase tracking-[0.14em] text-muted-foreground md:grid">
+            <span>Name</span>
+            <span>Teacher</span>
+            <span>Qualification</span>
+            <span>Status</span>
+            <span>Created</span>
+          </div>
+
+          {(resource.data ?? []).map((booking) => (
+            <div
+              key={booking.id}
+              className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1fr_1fr_1fr_.8fr_.8fr] md:items-center md:gap-4"
+            >
+              <div>
+                <p className="text-sm font-semibold">{booking.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {booking.address || 'No address'}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm">{booking.teacher_name}</p>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                {booking.qualification || '—'}
+              </p>
+
+              <p className="text-xs font-semibold">
+                {booking.status || '—'}
+              </p>
+
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  {formatDate(booking.created_at)}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => openEdit(booking)}
+                  disabled={actionBusy}
+                  className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+                >
+                  Edit
+                </button>
+              </div>
+
+              {booking.admin_notes && (
+                <div className="md:col-span-5 rounded-lg bg-muted/40 p-3">
+                  <p className="font-mono-ui text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                    Admin notes
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
+                    {booking.admin_notes}
+                  </p>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {!resource.loading && !resource.data?.length && (
+            <p className="px-5 py-12 text-center text-sm text-muted-foreground">
+              No teacher bookings yet.
+            </p>
+          )}
+        </div>
+      </QueryState>
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <form
+            onSubmit={saveEdit}
+            className="w-full max-w-lg space-y-4 rounded-xl border border-border bg-card p-5 shadow-xl"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-display text-xl font-semibold">
+                  Edit Teacher Booking
+                </h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {editing.name} · {editing.teacher_name}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="rounded-lg p-2 hover:bg-muted"
+                aria-label="Close edit form"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <Input
+              label="Status"
+              value={editStatus}
+              onChange={setEditStatus}
+              placeholder="Enter booking status"
+              required
+            />
+
+            <Textarea
+              label="Admin notes"
+              value={editNotes}
+              onChange={setEditNotes}
+              rows={5}
+            />
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="quiet"
+                onClick={() => setEditing(null)}
+                disabled={actionBusy}
+              >
+                Cancel
+              </Button>
+
+              <Button type="submit" disabled={actionBusy}>
+                {actionBusy ? 'Saving…' : 'Save changes'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
 function NotificationsPage() {
   const admin = useAdmin();
   const resource = useResource(() => selectRows<AppNotification>('notifications', 'id,title,body,published,created_at', 'created_at'), 'notifications');
   const tokens = useResource(() => selectRows<{ token: string; active: boolean }>('device_push_tokens', 'token,active', 'created_at'), 'push-tokens');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [editing, setEditing] = useState<AppNotification | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editBody, setEditBody] = useState('');
   const [busy, setBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -1109,23 +1347,101 @@ function NotificationsPage() {
     } finally { setBusy(false); }
   };
 
-  return <div className="page-enter"><SectionHeading eyebrow="Broadcast desk" title="Notifications" description="Publish an announcement once and deliver it to every registered device. The same announcement also appears inside the app." />
+  const openEdit = (item: AppNotification) => {
+    setEditing(item);
+    setEditTitle(item.title);
+    setEditBody(item.body);
+    setError('');
+    setSuccess('');
+  };
+
+  const saveEdit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!supabase || !editing || !editTitle.trim() || !editBody.trim()) return;
+    setActionBusy(true); setError(''); setSuccess('');
+    try {
+      const result = await supabase.from('notifications')
+        .update({ title: editTitle.trim(), body: editBody.trim() })
+        .eq('id', editing.id)
+        .select('id')
+        .single();
+      if (result.error) throw result.error;
+      await recordAudit(admin.id, 'update', 'notification', editing.id, { title: editTitle.trim() });
+      setEditing(null);
+      setSuccess('Announcement updated. No new push notification was sent.');
+      resource.reload();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to update announcement.');
+    } finally { setActionBusy(false); }
+  };
+
+  const deleteNotification = async (item: AppNotification) => {
+    if (!supabase) return;
+    const confirmed = window.confirm('Delete this announcement from the app? This cannot be undone. Already-delivered phone notifications cannot be recalled.');
+    if (!confirmed) return;
+    setActionBusy(true); setError(''); setSuccess('');
+    try {
+      const result = await supabase.from('notifications').delete().eq('id', item.id).select('id').single();
+      if (result.error) throw result.error;
+      await recordAudit(admin.id, 'delete', 'notification', item.id, { title: item.title });
+      if (editing?.id === item.id) setEditing(null);
+      setSuccess('Announcement deleted from the database. The app list will refresh when it next fetches announcements.');
+      resource.reload();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to delete announcement.');
+    } finally { setActionBusy(false); }
+  };
+
+  return <div className="page-enter">
+    <SectionHeading eyebrow="Broadcast desk" title="Notifications" description="Publish announcements to registered devices and manage announcements shown inside the app." />
+    {error && <div className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+    {success && <div className="mb-4 rounded-lg bg-secondary p-3 text-sm text-primary">{success}</div>}
     <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
       <form onSubmit={send} className="rounded-xl border border-border bg-card p-5">
         <p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-primary">New announcement</p>
         <h3 className="mt-1 font-display text-xl font-semibold">Send to all users</h3>
-        {error && <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-        {success && <div className="mt-4 rounded-lg bg-secondary p-3 text-sm text-primary">{success}</div>}
-        <div className="mt-5 space-y-4"><Input label="Title" value={title} onChange={setTitle} placeholder="Important update" required /><Textarea label="Message" value={body} onChange={setBody} rows={6} /><Button type="submit" disabled={busy}>{busy ? 'Sending…' : 'Publish & notify all users'}</Button></div>
+        <div className="mt-5 space-y-4">
+          <Input label="Title" value={title} onChange={setTitle} placeholder="Important update" required />
+          <Button type="submit" disabled={busy}>{busy ? 'Sendingâ€¦' : 'Publish & notify all users'}</Button>
+        </div>
       </form>
       <div className="space-y-6">
-        <div className="rounded-xl border border-border bg-primary p-5 text-primary-foreground"><Megaphone size={20} className="text-accent" /><p className="mt-4 font-display text-3xl font-semibold">{tokens.loading ? '—' : String((tokens.data ?? []).filter((item) => item.active).length)}</p><p className="mt-1 text-sm text-primary-foreground/70">Active push-enabled devices</p><p className="mt-4 text-xs leading-relaxed text-primary-foreground/65">Users who deny notification permission still receive announcements inside the app when they open the Notifications screen.</p></div>
-        <div className="rounded-xl border border-border bg-card p-5"><p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Recent announcements</p><QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="notifications"><div className="mt-4 space-y-3">{(resource.data ?? []).slice(0, 8).map((item) => <div key={item.id} className="rounded-lg bg-muted/40 p-3"><div className="flex items-start justify-between gap-3"><p className="text-sm font-semibold">{item.title}</p><span className="text-[10px] text-muted-foreground">{formatDate(item.created_at)}</span></div><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.body}</p></div>)}{!resource.data?.length && <p className="text-sm text-muted-foreground">No announcements yet.</p>}</div></QueryState></div>
+        <div className="rounded-xl border border-border bg-primary p-5 text-primary-foreground">
+          <Megaphone size={20} className="text-accent" />
+          <p className="mt-4 font-display text-3xl font-semibold">{tokens.loading ? 'â€”' : String((tokens.data ?? []).filter((item) => item.active).length)}</p>
+          <p className="mt-1 text-sm text-primary-foreground/70">Active push-enabled devices</p>
+          <p className="mt-4 text-xs leading-relaxed text-primary-foreground/65">Users who deny notification permission still receive announcements inside the app when they open the Notifications screen.</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-5">
+          <p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">All announcements</p>
+          <QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="notifications">
+            <div className="mt-4 space-y-3">
+              {(resource.data ?? []).map((item) => <div key={item.id} className="rounded-lg bg-muted/40 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0"><p className="text-sm font-semibold">{item.title}</p><p className="mt-1 text-[10px] text-muted-foreground">{formatDate(item.created_at)}</p></div>
+                  <div className="flex shrink-0 gap-2">
+                    <button type="button" disabled={actionBusy} onClick={() => openEdit(item)} className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50">Edit</button>
+                    <button type="button" disabled={actionBusy} onClick={() => void deleteNotification(item)} className="rounded-lg border border-destructive/30 px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">Delete</button>
+                  </div>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">{item.body}</p>
+              </div>)}
+              {!resource.data?.length && <p className="text-sm text-muted-foreground">No announcements yet.</p>}
+            </div>
+          </QueryState>
+        </div>
       </div>
     </div>
+    {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <form onSubmit={saveEdit} className="w-full max-w-lg space-y-4 rounded-xl border border-border bg-card p-5 shadow-xl">
+        <div className="flex items-center justify-between gap-3"><h3 className="font-display text-xl font-semibold">Edit announcement</h3><button type="button" onClick={() => setEditing(null)} className="rounded-lg p-2 hover:bg-muted" aria-label="Close edit form"><X size={18} /></button></div>
+        <p className="text-xs text-muted-foreground">Saving edits updates the in-app announcement only. It will not send another push notification.</p>
+        <Input label="Title" value={editTitle} onChange={setEditTitle} required />
+        <div className="flex justify-end gap-2"><Button type="button" variant="quiet" onClick={() => setEditing(null)} disabled={actionBusy}>Cancel</Button><Button type="submit" disabled={actionBusy}>{actionBusy ? 'Savingâ€¦' : 'Save changes'}</Button></div>
+      </form>
+    </div>}
   </div>;
 }
-
 function AuditLogsPage() {
   const resource = useResource(() => selectRows<AuditLog>('audit_logs', '*', 'created_at'), 'audit-logs');
   return <div className="page-enter"><SectionHeading eyebrow="Accountability" title="Audit logs" description="Append-only records of publishing, content, role, fundraising, and expense actions." /><QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="audit logs"><div className="overflow-hidden rounded-xl border border-border bg-card">{(resource.data ?? []).map((log) => <div key={log.id} className="flex flex-col gap-2 border-b border-border px-5 py-4 last:border-0 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold">{log.action} · {log.entity_type}</p><p className="mt-1 font-mono-ui text-[10px] text-muted-foreground">{log.entity_id ?? 'No entity id'} · admin {log.admin_id}</p></div><span className="text-xs text-muted-foreground">{formatDate(log.created_at)}</span></div>)}{!resource.data?.length && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No audit entries yet.</p>}</div></QueryState></div>;
@@ -1139,11 +1455,14 @@ function SettingsPage() {
 }
 
 function AppRouter() {
-  return <Switch><Route path="/" component={Overview} /><Route path="/masjids" component={MasjidsPage} /><Route path="/projects" component={ProjectsPage} /><Route path="/categories" component={CategoriesPage} /><Route path="/slides" component={SlidesPage} /><Route path="/donations" component={DonationsPage} /><Route path="/notifications" component={NotificationsPage} /><Route path="/documents" component={DocumentsPage} /><Route path="/audit-logs" component={AuditLogsPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch>;
+
+  return <Switch><Route path="/" component={Overview} /><Route path="/masjids" component={MasjidsPage} /><Route path="/projects" component={ProjectsPage} /><Route path="/categories" component={CategoriesPage} /><Route path="/slides" component={SlidesPage} /><Route path="/donations" component={DonationsPage} /><Route path="/teacher-bookings" component={TeacherBookingsPage} /><Route path="/notifications" component={NotificationsPage} /><Route path="/documents" component={DocumentsPage} /><Route path="/audit-logs" component={AuditLogsPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch>;
+
 }
 
 function App() {
-  return <TooltipProvider><AdminGate><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Shell><ErrorBoundary><AppRouter /></ErrorBoundary></Shell></WouterRouter></AdminGate><Toaster /></TooltipProvider>;
-}
 
+  return <TooltipProvider><AdminGate><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Shell><ErrorBoundary><AppRouter /></ErrorBoundary></Shell></WouterRouter></AdminGate><Toaster /></TooltipProvider>;
+
+}
 export default App;
