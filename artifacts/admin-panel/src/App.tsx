@@ -1141,10 +1141,6 @@ function TeacherBookingsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const newCount = (resource.data ?? []).filter((booking) => booking.status === 'new').length;
-  useEffect(() => {
-    const timer = window.setInterval(() => resource.reload(), 30000);
-    return () => window.clearInterval(timer);
-  }, [resource.reload]);
 
   const openEdit = (booking: TeacherBooking) => {
     setEditing(booking);
