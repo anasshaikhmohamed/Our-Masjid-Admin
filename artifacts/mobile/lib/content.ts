@@ -233,6 +233,7 @@ export function usePublishedHomeSlides() {
     },
     staleTime: 60_000,
     retry: false,
+    placeholderData: FALLBACK_HOME_SLIDES,
   });
   return { ...query, data: query.data };
 }
