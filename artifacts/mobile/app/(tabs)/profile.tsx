@@ -12,7 +12,6 @@ const activity = [
   { section: 'activity', key: 'donations', icon: 'hand-heart-outline', title: 'My Donations', copy: 'View your donation history', color: '#DDF3E6' },
   { section: 'activity', key: 'history', icon: 'history', title: 'Donation History', copy: 'All past contributions', color: '#DFEFFC' },
   { section: 'activity', key: 'saved', icon: 'bookmark-outline', title: 'Saved Masjids', copy: 'Masjids you’ve bookmarked', color: '#FFF1C6' },
-  { section: 'activity', key: 'notifications', icon: 'bell-outline', title: 'Notifications', copy: 'Project updates & alerts', color: '#FFF0D9' },
   { section: 'more', key: 'auto', icon: 'autorenew', title: 'Auto Sadqa', copy: 'Manage recurring donations', color: '#E9E0F9' },
 ];
 const about = [
@@ -58,9 +57,9 @@ export default function ProfileScreen() {
           <Feather name="chevron-right" size={18} color={colors.light.mutedForeground} style={{ marginLeft: 'auto' }} />
         </Pressable>
         <Text style={styles.groupLabel}>My Activity</Text>
-        <View style={styles.groupCard}>{activity.slice(0, 4).map((item) => <ProfileRow key={item.key} item={item} />)}</View>
+        <View style={styles.groupCard}>{activity.map((item) => <ProfileRow key={item.key} item={item} />)}</View>
         <Text style={styles.groupLabel}>More</Text>
-        <View style={styles.groupCard}><ProfileRow item={activity[4]} /></View>
+        <View style={styles.groupCard}><ProfileRow item={{ section: 'more', key: 'auto', icon: 'autorenew', title: 'Auto Sadqa', copy: 'Manage recurring donations', color: '#E9E0F9' }} /></View>
         <Text style={styles.groupLabel}>About</Text>
         <View style={styles.groupCard}>{about.map((item) => <ProfileRow key={item.key} item={item} />)}</View>
         <Pressable onPress={logout} style={({ pressed }) => [styles.logoutButton, pressed && { opacity: 0.75 }]}>
