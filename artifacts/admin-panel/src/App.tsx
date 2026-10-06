@@ -380,8 +380,8 @@ function QueryState({
 
 function Modal({ title, onClose, children, fullscreenOnMobile = false }: { title: string; onClose: () => void; children: ReactNode; fullscreenOnMobile?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-hidden bg-[hsl(155_32%_10%/.55)] p-3 pt-4 sm:px-5 sm:pb-5 sm:pt-6 backdrop-blur-sm">
-      <div className={cn('flex w-full max-w-3xl flex-col overflow-hidden border border-border bg-card shadow-2xl', fullscreenOnMobile ? 'h-[calc(100dvh-24px)] max-h-[calc(100dvh-24px)] rounded-2xl sm:h-auto sm:max-h-[calc(100dvh-48px)]' : 'max-h-[calc(100dvh-24px)] rounded-2xl sm:max-h-[calc(100dvh-48px)]')}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[hsl(155_32%_10%/.55)] p-3 pt-4 sm:px-5 sm:pb-6 sm:pt-6 backdrop-blur-sm">
+      <div className={cn('flex w-full max-w-3xl flex-col overflow-hidden border border-border bg-card shadow-2xl', fullscreenOnMobile ? 'min-h-[calc(100dvh-24px)] rounded-2xl sm:min-h-0 sm:max-h-[calc(100dvh-48px)]' : 'max-h-[calc(100dvh-24px)] rounded-2xl sm:max-h-[calc(100dvh-48px)]')}>
         <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
           <h2 className="font-display text-2xl font-semibold">{title}</h2>
           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Close dialog"><X size={18} /></button>
