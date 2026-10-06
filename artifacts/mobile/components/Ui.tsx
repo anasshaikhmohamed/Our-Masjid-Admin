@@ -76,7 +76,7 @@ export function HeroCarousel() {
   const fallbackImage = require('@/assets/images/masjid-hero.jpg');
 
   if (slidesLoading && !remoteSlides?.length) {
-    return <View style={styles.heroWrap} />;
+    return <View style={styles.heroWrap}><View style={styles.heroLoading}><Text style={styles.heroLoadingText}>Future For You</Text></View></View>;
   }
   if (!remoteSlides?.length) return null;
 
@@ -274,6 +274,8 @@ const styles = StyleSheet.create({
   sectionTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { color: colors.light.foreground, fontSize: 17, fontWeight: '600' },
   sectionAction: { color: colors.light.primary, fontSize: 12, fontWeight: '600' },
+  heroLoading: { height: '100%', borderRadius: 22, backgroundColor: colors.light.primary, alignItems: 'center', justifyContent: 'center' },
+  heroLoadingText: { color: '#FFE795', fontSize: 20, fontWeight: '700' },
   heroWrap: { marginHorizontal: 16, borderRadius: 20, overflow: 'hidden', height: 184, backgroundColor: '#173F31' },
   heroScroll: { alignItems: 'stretch' },
   heroSlide: { width: 356, height: 184, position: 'relative' },
