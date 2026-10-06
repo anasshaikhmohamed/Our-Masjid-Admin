@@ -185,9 +185,8 @@ async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
 
 export function usePublishedProjects() {
   const query = useQuery({ queryKey: ['our-masjid', 'published-projects'], queryFn: fetchPublishedProjects, staleTime: 60_000, retry: false, placeholderData: { projects: localProjects, source: 'cache' as ContentSource } });
-  // Do not render the old cache before the first online request completes.
-  // fetchPublishedProjects returns the cache only when Supabase is unavailable/errors,
-  // so offline mode still works without flashing stale/demo data on startup.
+  // Keep existing local content visible while the first online request is loading.
+  // Once Supabase responds, its published data replaces this placeholder.
   return { ...query, data: query.data };
 }
 
