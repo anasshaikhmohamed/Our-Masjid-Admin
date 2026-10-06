@@ -473,39 +473,58 @@ function Header({ onMenu }: { onMenu: () => void }) {
   return <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/80 bg-background/95 px-5 backdrop-blur-md lg:px-8"><div className="flex items-center gap-3"><button className="rounded-lg p-2 text-muted-foreground hover:bg-muted lg:hidden" onClick={onMenu} aria-label="Open navigation"><Menu size={20} /></button><div><p className="font-mono-ui text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Operations / {current}</p><h1 className="font-display text-xl font-semibold tracking-tight lg:text-2xl">{current}</h1></div></div><div className="hidden items-center gap-3 sm:flex"><div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Live Supabase data</div><div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">OM</div></div></header>;
 }
 
-function useNewTeacherBookingCount() {
-  const [count, setCount] = useState(0);
+const TEACHER_BOOKINGS_VIEWED_KEY = 'our-masjid.teacher-bookings.viewed-at';
+const TEACHER_BOOKINGS_VIEWED_EVENT = 'our-masjid:teacher-bookings-viewed';
+
+function markTeacherBookingsViewed() {
+  const viewedAt = new Date().toISOString();
+  window.localStorage.setItem(TEACHER_BOOKINGS_VIEWED_KEY, viewedAt);
+  window.dispatchEvent(new Event(TEACHER_BOOKINGS_VIEWED_EVENT));
+}
+
+function useNewTeacherBookingAlert() {
+  const [hasNew, setHasNew] = useState(false);
 
   useEffect(() => {
     let active = true;
 
     const load = async () => {
       if (!supabase) return;
-      const result = await supabase
+      const viewedAt = window.localStorage.getItem(TEACHER_BOOKINGS_VIEWED_KEY);
+      let query = supabase
         .from('teacher_bookings')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'new');
 
-      if (active && !result.error) setCount(result.count ?? 0);
+      if (viewedAt) query = query.gt('created_at', viewedAt);
+
+      const result = await query;
+      if (active && !result.error) setHasNew((result.count ?? 0) > 0);
     };
 
     void load();
     const timer = window.setInterval(() => void load(), 30000);
+    const handleViewed = () => {
+      if (active) setHasNew(false);
+    };
+
+    window.addEventListener(TEACHER_BOOKINGS_VIEWED_EVENT, handleViewed);
 
     return () => {
       active = false;
       window.clearInterval(timer);
+      window.removeEventListener(TEACHER_BOOKINGS_VIEWED_EVENT, handleViewed);
     };
   }, []);
 
-  return count;
+  return hasNew;
 }
 
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [location] = useLocation();
-  const newTeacherBookings = useNewTeacherBookingCount();
+  const hasNewTeacherBookings = useNewTeacherBookingAlert();
 
-  return <><div className={cn('fixed inset-0 z-30 bg-[hsl(155_32%_10%/.5)] lg:hidden', !open && 'hidden')} onClick={onClose} /><aside className={cn('fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-sidebar text-sidebar-foreground transition-transform duration-300 lg:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}><div className="flex h-[104px] items-center border-b border-sidebar-border px-7"><div className="mr-3 flex h-11 w-11 items-center justify-center rounded-xl border border-sidebar-primary/50 bg-sidebar-primary/10 text-sidebar-primary"><span className="font-display text-2xl font-bold">O</span></div><div><p className="font-display text-[21px] font-semibold leading-none">Our Masjid</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[0.22em] text-sidebar-foreground/55">Admin console</p></div></div><div className="overflow-y-auto px-4 py-7"><p className="px-3 pb-3 font-mono-ui text-[10px] uppercase tracking-[0.18em] text-sidebar-foreground/45">Workspace</p><nav className="space-y-1">{navItems.map((item) => { const Icon = item.icon; const active = item.href === location; return <Link href={item.href} onClick={onClose} key={item.href} className={cn('group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors', active ? 'bg-sidebar-accent font-semibold text-sidebar-primary' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground')}><Icon size={17} /><span>{item.label}</span>{item.href === '/teacher-bookings' && newTeacherBookings > 0 && <span className="ml-auto min-w-5 rounded-full bg-destructive px-1.5 py-0.5 text-center font-mono-ui text-[9px] font-bold text-destructive-foreground">{newTeacherBookings}</span>}{active && !(item.href === '/teacher-bookings' && newTeacherBookings > 0) && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}</Link>; })}</nav></div><div className="mt-auto p-4"><div className="rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-4"><div className="flex items-center gap-2 text-sidebar-primary"><ShieldCheck size={16} /><span className="font-mono-ui text-[10px] uppercase tracking-[0.12em]">Protected workspace</span></div><p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/60">Every write is protected by Supabase roles and recorded for review.</p></div><Link href="/settings" onClick={onClose} className="mt-3 flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-sidebar-foreground/65 hover:bg-sidebar-accent/70"><Settings2 size={17} /> Settings</Link></div></aside></>;
+  return <><div className={cn('fixed inset-0 z-30 bg-[hsl(155_32%_10%/.5)] lg:hidden', !open && 'hidden')} onClick={onClose} /><aside className={cn('fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-sidebar text-sidebar-foreground transition-transform duration-300 lg:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}><div className="flex h-[104px] items-center border-b border-sidebar-border px-7"><div className="mr-3 flex h-11 w-11 items-center justify-center rounded-xl border border-sidebar-primary/50 bg-sidebar-primary/10 text-sidebar-primary"><span className="font-display text-2xl font-bold">O</span></div><div><p className="font-display text-[21px] font-semibold leading-none">Our Masjid</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[0.22em] text-sidebar-foreground/55">Admin console</p></div></div><div className="overflow-y-auto px-4 py-7"><p className="px-3 pb-3 font-mono-ui text-[10px] uppercase tracking-[0.18em] text-sidebar-foreground/45">Workspace</p><nav className="space-y-1">{navItems.map((item) => { const Icon = item.icon; const active = item.href === location; return <Link href={item.href} onClick={onClose} key={item.href} className={cn('group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors', active ? 'bg-sidebar-accent font-semibold text-sidebar-primary' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground')}><Icon size={17} /><span>{item.label}</span>{item.href === '/teacher-bookings' && hasNewTeacherBookings && <span className="ml-auto h-2.5 w-2.5 rounded-full bg-destructive" aria-label="New teacher booking" />}{active && !(item.href === '/teacher-bookings' && hasNewTeacherBookings) && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}</Link>; })}</nav></div><div className="mt-auto p-4"><div className="rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-4"><div className="flex items-center gap-2 text-sidebar-primary"><ShieldCheck size={16} /><span className="font-mono-ui text-[10px] uppercase tracking-[0.12em]">Protected workspace</span></div><p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/60">Every write is protected by Supabase roles and recorded for review.</p></div><Link href="/settings" onClick={onClose} className="mt-3 flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-sidebar-foreground/65 hover:bg-sidebar-accent/70"><Settings2 size={17} /> Settings</Link></div></aside></>;
 }
 
 function Shell({ children }: { children: ReactNode }) {
@@ -1144,7 +1163,11 @@ function TeacherBookingsPage() {
 
   const openEdit = (booking: TeacherBooking) => {
     setEditing(booking);
-    setEditStatus(booking.status || '');
+    setEditName(booking.name || '');
+    setEditAddress(booking.address || '');
+    setEditTeacherName(booking.teacher_name || '');
+    setEditQualification(booking.qualification || '');
+    setEditStatus(booking.status || 'new');
     setEditNotes(booking.admin_notes || '');
     setError('');
     setSuccess('');
@@ -1163,6 +1186,10 @@ function TeacherBookingsPage() {
       const result = await supabase
         .from('teacher_bookings')
         .update({
+          name: editName.trim(),
+          address: editAddress.trim(),
+          teacher_name: editTeacherName.trim(),
+          qualification: editQualification.trim(),
           status: editStatus.trim(),
           admin_notes: editNotes.trim() || null,
         })
@@ -1321,12 +1348,24 @@ function TeacherBookingsPage() {
               </button>
             </div>
 
-            <Input
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="Name" value={editName} onChange={setEditName} required />
+              <Input label="Address" value={editAddress} onChange={setEditAddress} required />
+              <Input label="Teacher" value={editTeacherName} onChange={setEditTeacherName} required />
+              <Input label="Qualification" value={editQualification} onChange={setEditQualification} required />
+            </div>
+
+            <Select
               label="Status"
               value={editStatus}
               onChange={setEditStatus}
-              placeholder="Enter booking status"
-              required
+              options={[
+                { value: 'new', label: 'New' },
+                { value: 'contacted', label: 'Contacted' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'cancelled', label: 'Cancelled' },
+              ]}
             />
 
             <Textarea
