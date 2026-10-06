@@ -379,16 +379,18 @@ function QueryState({
 }
 
 function Modal({ title, onClose, children, fullscreenOnMobile = false }: { title: string; onClose: () => void; children: ReactNode; fullscreenOnMobile?: boolean }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[hsl(155_32%_10%/.55)] p-3 pt-4 sm:px-5 sm:pb-6 sm:pt-6 backdrop-blur-sm">
-      <div className={cn('flex h-[calc(100dvh-32px)] w-full max-w-3xl flex-col overflow-hidden border border-border bg-card shadow-2xl rounded-2xl', fullscreenOnMobile ? 'sm:h-[calc(100dvh-48px)]' : 'sm:h-[calc(100dvh-48px)]')}>
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex h-[100dvh] w-screen items-start justify-center overflow-y-auto bg-[hsl(155_32%_10%/.55)] p-3 pt-4 sm:p-6 backdrop-blur-sm">
+      <div className={cn('flex h-[calc(100dvh-24px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:h-[calc(100dvh-48px)]', fullscreenOnMobile && 'sm:h-[calc(100dvh-48px)]')}>
         <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
           <h2 className="font-display text-2xl font-semibold">{title}</h2>
           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Close dialog"><X size={18} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
