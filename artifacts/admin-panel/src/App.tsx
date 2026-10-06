@@ -1154,9 +1154,18 @@ function TeacherBookingsPage() {
   );
 
   const [editing, setEditing] = useState<TeacherBooking | null>(null);
-  const [editStatus, setEditStatus] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editTeacherName, setEditTeacherName] = useState('');
+  const [editQualification, setEditQualification] = useState('');
+  const [editStatus, setEditStatus] = useState('new');
   const [editNotes, setEditNotes] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
+
+  useEffect(() => {
+    if (!editing) return;
+    markTeacherBookingsViewed();
+  }, [editing]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const newCount = (resource.data ?? []).filter((booking) => booking.status === 'new').length;
