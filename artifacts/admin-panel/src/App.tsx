@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { createContext, useContext, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
   Activity,
@@ -379,16 +380,18 @@ function QueryState({
 }
 
 function Modal({ title, onClose, children, fullscreenOnMobile = false }: { title: string; onClose: () => void; children: ReactNode; fullscreenOnMobile?: boolean }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[hsl(155_32%_10%/.55)] p-3 sm:p-5 backdrop-blur-sm">
-      <div className={cn('flex w-full max-w-2xl flex-col overflow-hidden border border-border bg-card shadow-2xl', fullscreenOnMobile ? 'h-[100dvh] max-h-[100dvh] rounded-none sm:h-auto sm:max-h-[calc(100dvh-40px)] sm:rounded-2xl' : 'max-h-[calc(100dvh-24px)] rounded-2xl sm:max-h-[calc(100dvh-40px)]')}>
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex h-[100dvh] w-screen items-start justify-center overflow-y-auto bg-[hsl(155_32%_10%/.55)] p-3 pt-4 sm:p-6 backdrop-blur-sm">
+      <div className={cn('flex h-[calc(100dvh-24px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl sm:h-[calc(100dvh-48px)]', fullscreenOnMobile && 'sm:h-[calc(100dvh-48px)]')}>
         <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
           <h2 className="font-display text-2xl font-semibold">{title}</h2>
           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Close dialog"><X size={18} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -473,9 +476,58 @@ function Header({ onMenu }: { onMenu: () => void }) {
   return <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/80 bg-background/95 px-5 backdrop-blur-md lg:px-8"><div className="flex items-center gap-3"><button className="rounded-lg p-2 text-muted-foreground hover:bg-muted lg:hidden" onClick={onMenu} aria-label="Open navigation"><Menu size={20} /></button><div><p className="font-mono-ui text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Operations / {current}</p><h1 className="font-display text-xl font-semibold tracking-tight lg:text-2xl">{current}</h1></div></div><div className="hidden items-center gap-3 sm:flex"><div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Live Supabase data</div><div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">OM</div></div></header>;
 }
 
+const TEACHER_BOOKINGS_VIEWED_KEY = 'our-masjid.teacher-bookings.viewed-at';
+const TEACHER_BOOKINGS_VIEWED_EVENT = 'our-masjid:teacher-bookings-viewed';
+
+function markTeacherBookingsViewed() {
+  const viewedAt = new Date().toISOString();
+  window.localStorage.setItem(TEACHER_BOOKINGS_VIEWED_KEY, viewedAt);
+  window.dispatchEvent(new Event(TEACHER_BOOKINGS_VIEWED_EVENT));
+}
+
+function useNewTeacherBookingAlert() {
+  const [hasNew, setHasNew] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      if (!supabase) return;
+      const viewedAt = window.localStorage.getItem(TEACHER_BOOKINGS_VIEWED_KEY);
+      let query = supabase
+        .from('teacher_bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'new');
+
+      if (viewedAt) query = query.gt('created_at', viewedAt);
+
+      const result = await query;
+      if (active && !result.error) setHasNew((result.count ?? 0) > 0);
+    };
+
+    void load();
+    const timer = window.setInterval(() => void load(), 30000);
+    const handleViewed = () => {
+      if (active) setHasNew(false);
+    };
+
+    window.addEventListener(TEACHER_BOOKINGS_VIEWED_EVENT, handleViewed);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener(TEACHER_BOOKINGS_VIEWED_EVENT, handleViewed);
+    };
+  }, []);
+
+  return hasNew;
+}
+
 function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [location] = useLocation();
-  return <><div className={cn('fixed inset-0 z-30 bg-[hsl(155_32%_10%/.5)] lg:hidden', !open && 'hidden')} onClick={onClose} /><aside className={cn('fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-sidebar text-sidebar-foreground transition-transform duration-300 lg:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}><div className="flex h-[104px] items-center border-b border-sidebar-border px-7"><div className="mr-3 flex h-11 w-11 items-center justify-center rounded-xl border border-sidebar-primary/50 bg-sidebar-primary/10 text-sidebar-primary"><span className="font-display text-2xl font-bold">O</span></div><div><p className="font-display text-[21px] font-semibold leading-none">Our Masjid</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[0.22em] text-sidebar-foreground/55">Admin console</p></div></div><div className="overflow-y-auto px-4 py-7"><p className="px-3 pb-3 font-mono-ui text-[10px] uppercase tracking-[0.18em] text-sidebar-foreground/45">Workspace</p><nav className="space-y-1">{navItems.map((item) => { const Icon = item.icon; const active = item.href === location; return <Link href={item.href} onClick={onClose} key={item.href} className={cn('group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors', active ? 'bg-sidebar-accent font-semibold text-sidebar-primary' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground')}><Icon size={17} /><span>{item.label}</span>{active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}</Link>; })}</nav></div><div className="mt-auto p-4"><div className="rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-4"><div className="flex items-center gap-2 text-sidebar-primary"><ShieldCheck size={16} /><span className="font-mono-ui text-[10px] uppercase tracking-[0.12em]">Protected workspace</span></div><p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/60">Every write is protected by Supabase roles and recorded for review.</p></div><Link href="/settings" onClick={onClose} className="mt-3 flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-sidebar-foreground/65 hover:bg-sidebar-accent/70"><Settings2 size={17} /> Settings</Link></div></aside></>;
+  const hasNewTeacherBookings = useNewTeacherBookingAlert();
+
+  return <><div className={cn('fixed inset-0 z-30 bg-[hsl(155_32%_10%/.5)] lg:hidden', !open && 'hidden')} onClick={onClose} /><aside className={cn('fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col bg-sidebar text-sidebar-foreground transition-transform duration-300 lg:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}><div className="flex h-[104px] items-center border-b border-sidebar-border px-7"><div className="mr-3 flex h-11 w-11 items-center justify-center rounded-xl border border-sidebar-primary/50 bg-sidebar-primary/10 text-sidebar-primary"><span className="font-display text-2xl font-bold">O</span></div><div><p className="font-display text-[21px] font-semibold leading-none">Our Masjid</p><p className="mt-1 font-mono-ui text-[9px] uppercase tracking-[0.22em] text-sidebar-foreground/55">Admin console</p></div></div><div className="overflow-y-auto px-4 py-7"><p className="px-3 pb-3 font-mono-ui text-[10px] uppercase tracking-[0.18em] text-sidebar-foreground/45">Workspace</p><nav className="space-y-1">{navItems.map((item) => { const Icon = item.icon; const active = item.href === location; return <Link href={item.href} onClick={onClose} key={item.href} className={cn('group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors', active ? 'bg-sidebar-accent font-semibold text-sidebar-primary' : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground')}><Icon size={17} /><span>{item.label}</span>{item.href === '/teacher-bookings' && hasNewTeacherBookings && <span className="ml-auto h-2.5 w-2.5 rounded-full bg-destructive" aria-label="New teacher booking" />}{active && !(item.href === '/teacher-bookings' && hasNewTeacherBookings) && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}</Link>; })}</nav></div><div className="mt-auto p-4"><div className="rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-4"><div className="flex items-center gap-2 text-sidebar-primary"><ShieldCheck size={16} /><span className="font-mono-ui text-[10px] uppercase tracking-[0.12em]">Protected workspace</span></div><p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/60">Every write is protected by Supabase roles and recorded for review.</p></div><Link href="/settings" onClick={onClose} className="mt-3 flex items-center gap-3 rounded-lg px-3 py-3 text-sm text-sidebar-foreground/65 hover:bg-sidebar-accent/70"><Settings2 size={17} /> Settings</Link></div></aside></>;
 }
 
 function Shell({ children }: { children: ReactNode }) {
@@ -1105,15 +1157,29 @@ function TeacherBookingsPage() {
   );
 
   const [editing, setEditing] = useState<TeacherBooking | null>(null);
-  const [editStatus, setEditStatus] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editTeacherName, setEditTeacherName] = useState('');
+  const [editQualification, setEditQualification] = useState('');
+  const [editStatus, setEditStatus] = useState('new');
   const [editNotes, setEditNotes] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
+
+  useEffect(() => {
+    if (!editing) return;
+    markTeacherBookingsViewed();
+  }, [editing]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const newCount = (resource.data ?? []).filter((booking) => booking.status === 'new').length;
 
   const openEdit = (booking: TeacherBooking) => {
     setEditing(booking);
-    setEditStatus(booking.status || '');
+    setEditName(booking.name || '');
+    setEditAddress(booking.address || '');
+    setEditTeacherName(booking.teacher_name || '');
+    setEditQualification(booking.qualification || '');
+    setEditStatus(booking.status || 'new');
     setEditNotes(booking.admin_notes || '');
     setError('');
     setSuccess('');
@@ -1132,6 +1198,10 @@ function TeacherBookingsPage() {
       const result = await supabase
         .from('teacher_bookings')
         .update({
+          name: editName.trim(),
+          address: editAddress.trim(),
+          teacher_name: editTeacherName.trim(),
+          qualification: editQualification.trim(),
           status: editStatus.trim(),
           admin_notes: editNotes.trim() || null,
         })
@@ -1160,10 +1230,13 @@ function TeacherBookingsPage() {
         title="Teacher Bookings"
         description="Review teacher booking requests submitted from the Our Masjid app."
         action={
-          <Button onClick={() => resource.reload()}>
-            <RefreshCw size={16} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-3">
+            {newCount > 0 && <span className="rounded-full bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive">{newCount} new {newCount === 1 ? 'inquiry' : 'inquiries'}</span>}
+            <Button onClick={() => resource.reload()}>
+              <RefreshCw size={16} />
+              Refresh
+            </Button>
+          </div>
         }
       />
 
@@ -1214,9 +1287,16 @@ function TeacherBookingsPage() {
                 {booking.qualification || '—'}
               </p>
 
-              <p className="text-xs font-semibold">
-                {booking.status || '—'}
-              </p>
+              <span className={cn(
+                'w-fit rounded-full px-2.5 py-1 font-mono-ui text-[9px] font-bold uppercase tracking-wider',
+                booking.status === 'new'
+                  ? 'bg-destructive/10 text-destructive'
+                  : booking.status === 'completed'
+                    ? 'bg-secondary text-primary'
+                    : 'bg-muted text-muted-foreground'
+              )}>
+                {booking.status === 'new' ? 'NEW' : booking.status || '—'}
+              </span>
 
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
@@ -1280,12 +1360,24 @@ function TeacherBookingsPage() {
               </button>
             </div>
 
-            <Input
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="Name" value={editName} onChange={setEditName} required />
+              <Input label="Address" value={editAddress} onChange={setEditAddress} required />
+              <Input label="Teacher" value={editTeacherName} onChange={setEditTeacherName} required />
+              <Input label="Qualification" value={editQualification} onChange={setEditQualification} required />
+            </div>
+
+            <Select
               label="Status"
               value={editStatus}
               onChange={setEditStatus}
-              placeholder="Enter booking status"
-              required
+              options={[
+                { value: 'new', label: 'New' },
+                { value: 'contacted', label: 'Contacted' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'cancelled', label: 'Cancelled' },
+              ]}
             />
 
             <Textarea
