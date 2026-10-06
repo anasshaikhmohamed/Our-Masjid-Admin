@@ -134,10 +134,13 @@ async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
     .neq('status', 'hidden')
     .order('featured', { ascending: false })
     .order('created_at', { ascending: false });
-  if (core.error) return (await readCachedProjects()) ?? { projects: [], source: 'cache' };
+  if (core.error) {
+    if (__DEV__) console.warn('[Content] Unable to load published projects from Supabase:', core.error);
+    return (await readCachedProjects()) ?? { projects: localProjects, source: 'cache' };
+  }
 
   const rows = (core.data ?? []) as CoreProjectRow[];
-  if (!rows.length) return (await readCachedProjects()) ?? { projects: [], source: 'supabase' };
+  if (!rows.length) return (await readCachedProjects()) ?? { projects: localProjects, source: 'cache' };
 
   const projectIds = rows.map((row) => row.id);
   const masjidIds = [...new Set(rows.map((row) => row.masjid_id).filter(Boolean))];
@@ -207,16 +210,26 @@ async function readCachedHomeSlides(): Promise<PublicSlideRow[]> {
   } catch { return []; }
 }
 
+const FALLBACK_HOME_SLIDES: PublicSlideRow[] = [
+  { id: 'fallback-home', title: 'Future For You', subtitle: 'See where every contribution goes.', image_url: null, action_type: null, action_id: null },
+];
+
 export function usePublishedHomeSlides() {
   const query = useQuery({
     queryKey: ['our-masjid', 'home-slides'],
     queryFn: async (): Promise<PublicSlideRow[]> => {
-      if (!supabase) return readCachedHomeSlides();
+      if (!supabase) { const cached = await readCachedHomeSlides(); return cached.length ? cached : FALLBACK_HOME_SLIDES; }
       const { data, error } = await supabase.from('home_slides').select('id,title,subtitle,image_url,action_type,action_id').eq('published', true).order('sort_order', { ascending: true });
-      if (error) return readCachedHomeSlides();
+      if (error) {
+        if (__DEV__) console.warn('[Content] Unable to load home slides from Supabase:', error);
+        const cached = await readCachedHomeSlides();
+        return cached.length ? cached : FALLBACK_HOME_SLIDES;
+      }
       const slides = (data ?? []) as PublicSlideRow[];
       if (slides.length) { try { await AsyncStorage.setItem(HOME_SLIDES_CACHE_KEY, JSON.stringify(slides)); } catch { /* ignore */ } }
-      return slides;
+      if (slides.length) return slides;
+      const cached = await readCachedHomeSlides();
+      return cached.length ? cached : FALLBACK_HOME_SLIDES;
     },
     staleTime: 60_000,
     retry: false,
