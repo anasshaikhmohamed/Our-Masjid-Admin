@@ -218,7 +218,7 @@ export function usePublishedHomeSlides() {
   const query = useQuery({
     queryKey: ['our-masjid', 'home-slides'],
     queryFn: async (): Promise<PublicSlideRow[]> => {
-      if (!supabase) return (await readCachedHomeSlides()) .length ? readCachedHomeSlides() : FALLBACK_HOME_SLIDES;
+      if (!supabase) { const cached = await readCachedHomeSlides(); return cached.length ? cached : FALLBACK_HOME_SLIDES; }
       const { data, error } = await supabase.from('home_slides').select('id,title,subtitle,image_url,action_type,action_id').eq('published', true).order('sort_order', { ascending: true });
       if (error) {
         if (__DEV__) console.warn('[Content] Unable to load home slides from Supabase:', error);
@@ -227,7 +227,9 @@ export function usePublishedHomeSlides() {
       }
       const slides = (data ?? []) as PublicSlideRow[];
       if (slides.length) { try { await AsyncStorage.setItem(HOME_SLIDES_CACHE_KEY, JSON.stringify(slides)); } catch { /* ignore */ } }
-      return slides.length ? slides : ((await readCachedHomeSlides()).length ? await readCachedHomeSlides() : FALLBACK_HOME_SLIDES);
+      if (slides.length) return slides;
+      const cached = await readCachedHomeSlides();
+      return cached.length ? cached : FALLBACK_HOME_SLIDES;
     },
     staleTime: 60_000,
     retry: false,
