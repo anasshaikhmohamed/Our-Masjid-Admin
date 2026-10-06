@@ -12,8 +12,7 @@ const activity = [
   { section: 'activity', key: 'donations', icon: 'hand-heart-outline', title: 'My Donations', copy: 'View your donation history', color: '#DDF3E6' },
   { section: 'activity', key: 'history', icon: 'history', title: 'Donation History', copy: 'All past contributions', color: '#DFEFFC' },
   { section: 'activity', key: 'saved', icon: 'bookmark-outline', title: 'Saved Masjids', copy: 'Masjids you’ve bookmarked', color: '#FFF1C6' },
-  { section: 'more', key: 'auto', icon: 'autorenew', title: 'Auto Sadqa', copy: 'Manage recurring donations', color: '#E9E0F9' },
-];
+  ];
 const about = [
   { key: 'about', icon: 'mosque', title: 'About Our Masjid', copy: 'Our mission & story', color: '#DDF3E6' },
   { key: 'contact', icon: 'card-account-phone-outline', title: 'Contact Us', copy: 'Get in touch with us', color: '#DDF3E6' },
