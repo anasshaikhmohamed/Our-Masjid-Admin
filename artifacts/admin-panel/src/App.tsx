@@ -1076,8 +1076,18 @@ async function sendExpoAnnouncement(title: string, body: string, tokens: string[
       body: JSON.stringify(batch),
     });
     if (!response.ok) throw new Error(`Push service returned ${response.status}.`);
-    const result = await response.json() as { data?: Array<{ status?: string }> };
-    accepted += (result.data ?? []).filter((ticket) => ticket.status === 'ok').length;
+    const result = await response.json() as {
+      data?: Array<{ status?: string; message?: string; details?: { error?: string } }>;
+    };
+    const tickets = result.data ?? [];
+    accepted += tickets.filter((ticket) => ticket.status === 'ok').length;
+    const failures = tickets.filter((ticket) => ticket.status === 'error');
+    if (failures.length) {
+      const reasons = [...new Set(failures.map((ticket) =>
+        ticket.details?.error || ticket.message || 'Unknown Expo push error'
+      ))];
+      console.error('[Expo Push] Failed tickets:', failures.length, reasons);
+    }
   }
   return accepted;
 }
@@ -1402,7 +1412,11 @@ function NotificationsPage() {
         <h3 className="mt-1 font-display text-xl font-semibold">Send to all users</h3>
         <div className="mt-5 space-y-4">
           <Input label="Title" value={title} onChange={setTitle} placeholder="Important update" required />
-          <Button type="submit" disabled={busy}>{busy ? 'Sendingâ€¦' : 'Publish & notify all users'}</Button>
+          <label className="block text-xs font-semibold text-foreground">
+            Message
+            <textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder="Write your announcement here..." required rows={4} className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal outline-none focus:ring-2 focus:ring-primary" />
+          </label>
+          <Button type="submit" disabled={busy}>{busy ? 'Sending...' : 'Publish & notify all users'}</Button>
         </div>
       </form>
       <div className="space-y-6">
