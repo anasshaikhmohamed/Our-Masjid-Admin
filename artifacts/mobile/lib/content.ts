@@ -136,11 +136,14 @@ async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
     .order('created_at', { ascending: false });
   if (core.error) {
     if (__DEV__) console.warn('[Content] Unable to load published projects from Supabase:', core.error);
-    return (await readCachedProjects()) ?? { projects: localProjects, source: 'cache' };
+    return (await readCachedProjects()) ?? { projects: [], source: 'cache' };
   }
 
   const rows = (core.data ?? []) as CoreProjectRow[];
-  if (!rows.length) return (await readCachedProjects()) ?? { projects: localProjects, source: 'cache' };
+  if (!rows.length) {
+    await AsyncStorage.removeItem(PROJECTS_CACHE_KEY).catch(() => undefined);
+    return { projects: [], source: 'supabase' };
+  }
 
   const projectIds = rows.map((row) => row.id);
   const masjidIds = [...new Set(rows.map((row) => row.masjid_id).filter(Boolean))];
@@ -184,7 +187,7 @@ async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
 }
 
 export function usePublishedProjects() {
-  const query = useQuery({ queryKey: ['our-masjid', 'published-projects'], queryFn: fetchPublishedProjects, staleTime: 60_000, retry: false, placeholderData: { projects: localProjects, source: 'cache' as ContentSource } });
+  const query = useQuery({ queryKey: ['our-masjid', 'published-projects'], queryFn: fetchPublishedProjects, staleTime: 60_000, retry: false, placeholderData: undefined });
   // Keep existing local content visible while the first online request is loading.
   // Once Supabase responds, its published data replaces this placeholder.
   return { ...query, data: query.data };
@@ -232,7 +235,7 @@ export function usePublishedHomeSlides() {
     },
     staleTime: 60_000,
     retry: false,
-    placeholderData: FALLBACK_HOME_SLIDES,
+    placeholderData: undefined,
   });
   return { ...query, data: query.data };
 }
