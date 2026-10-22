@@ -41,6 +41,7 @@ function RootLayoutNav() {
       <Stack.Screen name="otp" options={{ headerShown: false }} />
       <Stack.Screen name="name" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="teacher-booking" options={{ headerShown: false }} />
       <Stack.Screen name="masjid/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="work/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="donation" options={{ headerShown: false, presentation: 'modal' }} />

@@ -62,7 +62,7 @@ export default function WorkDetailScreen() {
           {publicDocs.map((doc) => <Pressable key={`project-${doc.id}`} onPress={() => router.push({ pathname: '/document', params: { url: doc.url, title: doc.title } })} style={styles.docRow}><Feather name="file-text" size={18} color={colors.light.primary} /><Text style={styles.docTitle}>{doc.title}</Text><Feather name="external-link" size={16} color={colors.light.mutedForeground} /></Pressable>)}
           {publicMasjidDocs.map((doc) => <Pressable key={`masjid-${doc.id}`} onPress={() => router.push({ pathname: '/document', params: { url: doc.url, title: doc.title } })} style={styles.docRow}><Feather name="file-text" size={18} color={colors.light.primary} /><Text style={styles.docTitle}>{doc.title}</Text><Feather name="external-link" size={16} color={colors.light.mutedForeground} /></Pressable>)}
           {!publicDocs.length && !publicMasjidDocs.length ? <View style={styles.docRow}><Feather name="file-text" size={18} color={colors.light.mutedForeground} /><Text style={styles.docTitle}>Qazi-e-Shaher permission letter</Text><Text style={styles.docMuted}>Not uploaded</Text></View> : null}
-          <Pressable onPress={showPrivateNotice} style={styles.docRow}><Feather name="lock" size={18} color="#AD7D2C" /><Text style={styles.docTitle}>Private project / Masjid documents</Text><Feather name="chevron-right" size={16} color={colors.light.mutedForeground} /></Pressable>
+          <Pressable onPress={showPrivateNotice} style={styles.docRow}><Feather name="lock" size={18} color="#AD7D2C" /><Text style={styles.docTitle}>Masjid documents</Text><Feather name="chevron-right" size={16} color={colors.light.mutedForeground} /></Pressable>
         </View>
       </ScrollView>
       <ThemedModal

@@ -19,6 +19,7 @@ export default function TeacherBookingScreen() {
     }
     setBusy(true);
     if (!supabase) {
+      setBusy(false);
       Alert.alert('Temporarily unavailable', 'Booking is not connected right now. Please try again later.');
       return;
     }
@@ -71,7 +72,7 @@ export default function TeacherBookingScreen() {
         </View>
         <Pressable onPress={() => void connectWhatsApp()} style={({ pressed }) => [styles.whatsappRow, pressed && { opacity: 0.8 }]}>
           <View style={styles.whatsappIcon}><MaterialCommunityIcons name="whatsapp" size={21} color="#FFFFFF" /></View>
-          <View style={{ flex: 1 }}><Text style={styles.whatsappTitle}>Have a question?</Text><Text style={styles.whatsappCopy}>Connect Now on WhatsApp</Text></View>
+          <View style={{ flex: 1 }}><Text style={styles.whatsappTitle}>Contact Qari Shaikh Anas directly</Text><Text style={styles.whatsappCopy}>Tap here to connect on WhatsApp</Text></View>
           <Feather name="chevron-right" size={18} color={colors.light.mutedForeground} />
         </Pressable>
       </ScrollView>
