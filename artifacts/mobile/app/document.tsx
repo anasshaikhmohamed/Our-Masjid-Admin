@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
@@ -10,9 +10,16 @@ export default function DocumentScreen() {
   const documentUrl = String(url);
   const documentTitle = String(title);
   const isPdf = /\.pdf(?:$|[?#])/i.test(documentUrl);
-  const viewerUrl = isPdf
-    ? `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(documentUrl)}`
-    : documentUrl;
+  const viewerUrl = documentUrl;
+
+  // Android WebView/Google Docs embeds can render PDFs with large black bands.
+  // Open PDFs with the device's document viewer instead.
+
+  React.useEffect(() => {
+    if (documentUrl && isPdf) {
+      void Linking.openURL(documentUrl).catch(() => undefined);
+    }
+  }, [documentUrl, isPdf]);
 
   return (
     <View style={styles.screen}>
@@ -21,7 +28,9 @@ export default function DocumentScreen() {
         <Text numberOfLines={1} style={styles.title}>{documentTitle}</Text>
         <View style={{ width: 42 }} />
       </View>
-      {documentUrl ? (
+      {documentUrl && isPdf ? (
+        <View style={styles.loading}><Text style={styles.loadingText}>PDF opens in your document viewer.</Text><Pressable onPress={() => void Linking.openURL(documentUrl)}><Text style={styles.loadingText}>Tap to open again</Text></Pressable></View>
+      ) : documentUrl ? (
         <WebView
           source={{ uri: viewerUrl }}
           style={styles.webview}
