@@ -1148,6 +1148,7 @@ function TeacherBookingsPage() {
     id: string;
     name: string;
     address: string;
+    mobile_number: string | null;
     teacher_name: string;
     qualification: string;
     status: string;
@@ -1160,7 +1161,7 @@ function TeacherBookingsPage() {
     () =>
       selectRows<TeacherBooking>(
         'teacher_bookings',
-        'id,name,address,teacher_name,qualification,status,admin_notes,created_at,updated_at',
+        'id,name,address,mobile_number,teacher_name,qualification,status,admin_notes,created_at,updated_at',
         'created_at'
       ),
     'teacher-bookings'
@@ -1286,6 +1287,7 @@ function TeacherBookingsPage() {
                 <p className="text-sm font-semibold">{booking.name}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {booking.address || 'No address'}
+                  {booking.mobile_number ? ` | Mobile: ${booking.mobile_number}` : ""}
                 </p>
               </div>
 

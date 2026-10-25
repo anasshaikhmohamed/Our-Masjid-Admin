@@ -12,7 +12,9 @@ const activity = [
   { section: 'activity', key: 'donations', icon: 'hand-heart-outline', title: 'My Donations', copy: 'View your donation history', color: '#DDF3E6' },
   { section: 'activity', key: 'history', icon: 'history', title: 'Donation History', copy: 'All past contributions', color: '#DFEFFC' },
   { section: 'activity', key: 'saved', icon: 'bookmark-outline', title: 'Saved Masjids', copy: 'Masjids you’ve bookmarked', color: '#FFF1C6' },
-  ];
+  { section: 'activity', key: 'teacher', icon: 'school', title: 'Book Your Islamic Teacher for You & Your Children', copy: 'Learn Quran & Islamic knowledge', color: '#E9E0F9' },
+  { section: 'more', key: 'auto', icon: 'autorenew', title: 'Auto Sadqa', copy: 'Manage recurring donations', color: '#E9E0F9' },
+];
 const about = [
   { key: 'about', icon: 'mosque', title: 'About Our Masjid', copy: 'Our mission & story', color: '#DDF3E6' },
   { key: 'contact', icon: 'card-account-phone-outline', title: 'Contact Us', copy: 'Get in touch with us', color: '#DDF3E6' },
@@ -20,7 +22,7 @@ const about = [
 
 function ProfileRow({ item }: { item: { key: string; icon: string; title: string; copy: string; color: string } }) {
   return (
-    <Pressable onPress={() => router.push({ pathname: '/profile-section', params: { section: item.key } })} style={({ pressed }) => [styles.row, pressed && { backgroundColor: '#F4F8F5' }]}>
+    <Pressable onPress={() => item.key === 'teacher' ? router.push('/teacher-booking') : router.push({ pathname: '/profile-section', params: { section: item.key } })} style={({ pressed }) => [styles.row, pressed && { backgroundColor: '#F4F8F5' }]}>
       <View style={[styles.rowIcon, { backgroundColor: item.color }]}><MaterialCommunityIcons name={item.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={19} color={colors.light.primary} /></View>
       <View style={{ flex: 1 }}><Text style={styles.rowTitle}>{item.title}</Text><Text style={styles.rowCopy}>{item.copy}</Text></View>
       <Feather name="chevron-right" size={17} color={colors.light.mutedForeground} />
@@ -56,9 +58,9 @@ export default function ProfileScreen() {
           <Feather name="chevron-right" size={18} color={colors.light.mutedForeground} style={{ marginLeft: 'auto' }} />
         </Pressable>
         <Text style={styles.groupLabel}>My Activity</Text>
-        <View style={styles.groupCard}>{activity.map((item) => <ProfileRow key={item.key} item={item} />)}</View>
+        <View style={styles.groupCard}>{activity.slice(0, 4).map((item) => <ProfileRow key={item.key} item={item} />)}</View>
         <Text style={styles.groupLabel}>More</Text>
-        <View style={styles.groupCard}><ProfileRow item={{ section: 'more', key: 'auto', icon: 'autorenew', title: 'Auto Sadqa', copy: 'Manage recurring donations', color: '#E9E0F9' }} /></View>
+        <View style={styles.groupCard}><ProfileRow item={activity[4]} /></View>
         <Text style={styles.groupLabel}>About</Text>
         <View style={styles.groupCard}>{about.map((item) => <ProfileRow key={item.key} item={item} />)}</View>
         <Pressable onPress={logout} style={({ pressed }) => [styles.logoutButton, pressed && { opacity: 0.75 }]}>

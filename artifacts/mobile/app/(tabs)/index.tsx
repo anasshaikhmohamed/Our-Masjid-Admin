@@ -9,55 +9,226 @@ import { AppHeader, HeroCarousel, ProjectCard, SectionTitle, StatCard } from '@/
 import { getUnreadNotificationCount } from '@/lib/notifications';
 
 export default function HomeScreen() {
-  const { data } = usePublishedProjects();
+  const { data, isLoading, isError } = usePublishedProjects();
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  useFocusEffect(useCallback(() => {
-    let active = true;
-    void getUnreadNotificationCount().then((count) => { if (active) setUnreadNotifications(count); });
-    return () => { active = false; };
-  }, []));
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      void getUnreadNotificationCount().then((count) => {
+        if (active) {
+          setUnreadNotifications(count);
+        }
+      });
+
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+
   const projects = data?.projects ?? [];
-  const urgentProjects = projects.filter((project) => project.status === 'Urgent');
-  const activeProjects = projects.filter((project) => project.status === 'Active');
-  const completedCount = projects.filter((project) => project.status === 'Completed').length;
-  const masjidCount = new Set(projects.map((project) => project.name)).size;
-  const totalRaised = projects.reduce((total, project) => total + project.raised, 0);
+  const urgentProjects = projects.filter(
+    (project) => project.status === 'Urgent'
+  );
+  const activeProjects = projects.filter(
+    (project) => project.status === 'Active'
+  );
+  const completedCount = projects.filter(
+    (project) => project.status === 'Completed'
+  ).length;
+  const masjidCount = new Set(
+    projects.map((project) => project.name)
+  ).size;
+  const totalRaised = projects.reduce(
+    (total, project) => total + project.raised,
+    0
+  );
+
+  const showInitialLoading = !data && isLoading;
+  const showInitialError = !data && isError;
 
   return (
     <View style={styles.screen}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 0 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 0 }}
+      >
         <AppHeader
           title="Every Masjid is verified"
+          titleStyle={{ fontFamily: 'Inter_600SemiBold' }}
           subtitle="See where every contribution goes."
-          right={<Pressable onPress={() => router.push('/notifications')} style={styles.headerIcon}><Feather name="bell" size={17} color={colors.light.primary} />{unreadNotifications > 0 ? <View style={styles.notificationDot} /> : null}</Pressable>}
+          right={
+            <Pressable
+              onPress={() => router.push('/notifications')}
+              style={styles.headerIcon}
+            >
+              <Feather
+                name="bell"
+                size={17}
+                color={colors.light.primary}
+              />
+              {unreadNotifications > 0 ? (
+                <View style={styles.notificationDot} />
+              ) : null}
+            </Pressable>
+          }
         />
-        <HeroCarousel />
-        <View style={styles.section}>
-          <SectionTitle title="Our Impact" />
-          <View style={styles.statGrid}>
-            <StatCard icon="currency-inr" label="Total Raised" value={formatINR(totalRaised)} tone="green" onPress={() => router.push('/raised')} />
-            <StatCard icon="tools" label="Active Projects" value={String(activeProjects.length)} tone="yellow" />
-            <StatCard icon="check-circle-outline" label="Completed" value={String(completedCount)} tone="green" />
-            <StatCard icon="mosque" label="Masjids" value={String(masjidCount)} tone="blue" />
+
+        {showInitialLoading ? (
+          <View style={styles.messageContainer}>
+            <Text style={styles.messageText}>
+              Loading masjid information...
+            </Text>
           </View>
-        </View>
-        <View style={styles.section}>
-          <SectionTitle title="Urgent Support Needed" action="View All" onAction={() => router.push('/(tabs)/masjids')} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {urgentProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} compact onPress={() => router.push({ pathname: '/masjid/[id]', params: { id: project.id } })} />
-            ))}
-          </ScrollView>
-        </View>
+        ) : showInitialError ? (
+          <View style={styles.messageContainer}>
+            <Text style={styles.errorText}>
+              Unable to load masjid information.
+              Please check your internet connection.
+            </Text>
+          </View>
+        ) : !data ? (
+          <View style={styles.messageContainer}>
+            <Text style={styles.messageText}>
+              Preparing masjid information...
+            </Text>
+          </View>
+        ) : (
+          <>
+            <HeroCarousel />
+
+            <View style={styles.section}>
+              <SectionTitle title="Our Impact" />
+
+              <View style={styles.statGrid}>
+                <StatCard
+                  icon="currency-inr"
+                  label="Total Raised"
+                  value={formatINR(totalRaised)}
+                  tone="green"
+                  onPress={() => router.push('/raised')}
+                />
+
+                <StatCard
+                  icon="tools"
+                  label="Active Projects"
+                  value={String(activeProjects.length)}
+                  tone="yellow"
+                />
+
+                <StatCard
+                  icon="check-circle-outline"
+                  label="Completed"
+                  value={String(completedCount)}
+                  tone="green"
+                />
+
+                <StatCard
+                  icon="mosque"
+                  label="Masjids"
+                  value={String(masjidCount)}
+                  tone="blue"
+                />
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <SectionTitle
+                title="Urgent Support Needed"
+                action="View All"
+                onAction={() => router.push('/(tabs)/masjids')}
+              />
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+              >
+                {urgentProjects.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    compact
+                    onPress={() =>
+                      router.push({
+                        pathname: '/masjid/[id]',
+                        params: { id: project.id },
+                      })
+                    }
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.light.background },
-  section: { paddingHorizontal: 16, marginTop: 19 },
-  headerIcon: { width: 37, height: 37, borderRadius: 13, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#1F4D3B', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
-  notificationDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#C51F2A', position: 'absolute', right: 8, top: 7 },
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 11 },
+  screen: {
+    flex: 1,
+    backgroundColor: colors.light.background,
+  },
+
+  section: {
+    paddingHorizontal: 16,
+    marginTop: 19,
+  },
+
+  headerIcon: {
+    width: 37,
+    height: 37,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#1F4D3B',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    elevation: 2,
+  },
+
+  notificationDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#C51F2A',
+    position: 'absolute',
+    right: 8,
+    top: 7,
+  },
+
+  statGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 11,
+  },
+
+  messageContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  messageText: {
+    fontSize: 14,
+    color: colors.light.mutedForeground,
+    textAlign: 'center',
+  },
+
+  errorText: {
+    fontSize: 14,
+    color: colors.light.destructive,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
 });
