@@ -17,8 +17,20 @@ export function getSupabaseConfig(): SupabaseConfig | null {
 
 const config = getSupabaseConfig();
 
+const SUPABASE_REQUEST_TIMEOUT_MS = 5000;
+const fetchWithTimeout: typeof fetch = async (input, init) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SUPABASE_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: init?.signal ?? controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 export const supabase: SupabaseClient | null = config
   ? createClient(config.url, config.anonKey, {
+      global: { fetch: fetchWithTimeout },
       auth: {
         storage: AsyncStorage,
         autoRefreshToken: true,

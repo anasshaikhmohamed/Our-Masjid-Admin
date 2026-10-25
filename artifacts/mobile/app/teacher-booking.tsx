@@ -8,23 +8,29 @@ import { supabase } from '@/lib/supabase';
 
 export default function TeacherBookingScreen() {
   const [name, setName] = useState('');
+  const [mobile, setMobile] = useState('');
   const [address, setAddress] = useState('');
   const [busy, setBusy] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const submit = async () => {
-    if (!name.trim() || !address.trim()) {
-      Alert.alert('Details required', 'Please enter your name and address.');
+    if (!name.trim() || !mobile.trim() || !address.trim()) {
+      Alert.alert('Details required', 'Please enter your name, mobile number and address.');
       return;
     }
-    setBusy(true);
+    if (!/^\d{10}$/.test(mobile)) {
+      Alert.alert('Invalid mobile number', 'Please enter a valid 10-digit mobile number.');
+      return;
+    }
     if (!supabase) {
       Alert.alert('Temporarily unavailable', 'Booking is not connected right now. Please try again later.');
       return;
     }
+    setBusy(true);
     try {
       const { error } = await supabase.from('teacher_bookings').insert({
         name: name.trim(),
+        mobile_number: mobile,
         address: address.trim(),
         teacher_name: 'Qari Shaikh Anas',
         qualification: 'Hafiz & Qari',
@@ -32,9 +38,11 @@ export default function TeacherBookingScreen() {
       });
       if (error) throw error;
       setShowSuccessModal(true);
-      setName('' );
-      setAddress('' );
-    } catch {
+      setName('');
+      setMobile('');
+      setAddress('');
+    } catch (error) {
+      if (__DEV__) console.error('[Teacher Booking] Submission failed:', error);
       Alert.alert('Could not submit', 'Your request could not be saved. Please check your internet connection and try again.');
     } finally {
       setBusy(false);
@@ -65,15 +73,30 @@ export default function TeacherBookingScreen() {
           <Text style={styles.formTitle}>Your Details</Text>
           <Text style={styles.label}>Name</Text>
           <TextInput value={name} onChangeText={setName} placeholder="Enter your full name" placeholderTextColor={colors.light.mutedForeground} style={styles.input} autoCapitalize="words" returnKeyType="next" />
+          <Text style={styles.label}>Mobile Number</Text>
+          <TextInput
+            value={mobile}
+            onChangeText={(value) => setMobile(value.replace(/\D/g, '').slice(0, 10))}
+            placeholder="Enter your 10-digit mobile number"
+            placeholderTextColor={colors.light.mutedForeground}
+            style={styles.input}
+            keyboardType="phone-pad"
+            maxLength={10}
+            returnKeyType="next"
+          />
           <Text style={styles.label}>Address</Text>
           <TextInput value={address} onChangeText={setAddress} placeholder="Enter your area and full address" placeholderTextColor={colors.light.mutedForeground} style={[styles.input, styles.addressInput]} multiline textAlignVertical="top" />
-          <Pressable disabled={busy} onPress={() => void submit()} style={({ pressed }) => [styles.submit, (pressed || busy) && { opacity: 0.75 }]}><Text style={styles.submitText}>{busy ? 'Submitting…' : 'Submit Booking Request'}</Text><Feather name="arrow-right" size={17} color="#FFFFFF" /></Pressable>
+          <View style={styles.actionRow}>
+            <Pressable disabled={busy} onPress={() => void submit()} style={({ pressed }) => [styles.submit, (pressed || busy) && { opacity: 0.75 }]}>
+              <Text style={styles.submitText}>Submit</Text>
+            </Pressable>
+            <Text style={styles.contactCopy}>For enquiries or to arrange lessons, please contact Qari Shaikh Anas directly on WhatsApp.</Text>
+            <Pressable onPress={() => void connectWhatsApp()} style={({ pressed }) => [styles.whatsappButton, pressed && { opacity: 0.8 }]}>
+              <MaterialCommunityIcons name="whatsapp" size={20} color="#FFFFFF" />
+              <Text style={styles.whatsappButtonText}>Contact Now</Text>
+            </Pressable>
+          </View>
         </View>
-        <Pressable onPress={() => void connectWhatsApp()} style={({ pressed }) => [styles.whatsappRow, pressed && { opacity: 0.8 }]}>
-          <View style={styles.whatsappIcon}><MaterialCommunityIcons name="whatsapp" size={21} color="#FFFFFF" /></View>
-          <View style={{ flex: 1 }}><Text style={styles.whatsappTitle}>Have a question?</Text><Text style={styles.whatsappCopy}>Connect Now on WhatsApp</Text></View>
-          <Feather name="chevron-right" size={18} color={colors.light.mutedForeground} />
-        </Pressable>
       </ScrollView>
       <ThemedModal visible={showSuccessModal} title="Request Submitted" message="JazakAllah khair. Your booking request has been received." icon="check-circle" primaryLabel="OK" onClose={() => setShowSuccessModal(false)} onPrimary={() => { setShowSuccessModal(false); router.back(); }} />
     </KeyboardAvoidingView>
@@ -96,10 +119,10 @@ const styles = StyleSheet.create({
   label: { color: colors.light.foreground, fontSize: 12, marginBottom: 7, marginTop: 10 },
   input: { minHeight: 46, borderWidth: 1, borderColor: colors.light.border, borderRadius: 12, paddingHorizontal: 13, color: colors.light.foreground, fontSize: 13, backgroundColor: '#FFFFFF' },
   addressInput: { minHeight: 90, paddingTop: 12 },
-  submit: { marginTop: 18, minHeight: 48, borderRadius: 13, backgroundColor: colors.light.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
-  submitText: { color: '#FFFFFF', fontSize: 13, fontWeight: '500' },
-  whatsappRow: { marginHorizontal: 16, marginTop: 14, minHeight: 68, paddingHorizontal: 14, borderRadius: 16, backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 12 },
-  whatsappIcon: { width: 39, height: 39, borderRadius: 13, backgroundColor: '#20A45A', alignItems: 'center', justifyContent: 'center' },
-  whatsappTitle: { color: colors.light.foreground, fontSize: 12, fontWeight: '500' },
-  whatsappCopy: { color: colors.light.primary, fontSize: 11, marginTop: 4 },
+  submit: { marginTop: 18, minHeight: 48, borderRadius: 13, backgroundColor: '#C62828', alignItems: 'center', justifyContent: 'center' },
+  submitText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  actionRow: { marginTop: 18, flexDirection: 'column', alignItems: 'stretch', gap: 14 },
+  contactCopy: { color: colors.light.mutedForeground, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 2 },
+  whatsappButton: { minHeight: 48, paddingHorizontal: 13, borderRadius: 13, backgroundColor: '#20A45A', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  whatsappButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
 });

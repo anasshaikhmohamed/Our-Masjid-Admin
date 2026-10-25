@@ -1,0 +1,299 @@
+diff --git a/App-notifications-backup.tsx b/src/App.tsx
+index 3d85d49..d6d4801 100644
+--- a/App-notifications-backup.tsx
++++ b/src/App.tsx
+@@ -144,17 +144,6 @@ type AppNotification = {
+   created_at: string;
+ };
+ 
+-type TeacherBooking = {
+-  id: string;
+-  name: string;
+-  address: string;
+-  teacher_name: string;
+-  qualification: string;
+-  status: 'new' | 'contacted' | 'completed' | 'cancelled';
+-  admin_notes: string | null;
+-  created_at: string;
+-};
+-
+ type AuditLog = {
+   id: string;
+   admin_id: string;
+@@ -172,7 +161,6 @@ const navItems = [
+   { href: '/categories', label: 'Categories', icon: SlidersHorizontal },
+   { href: '/slides', label: 'Home slides', icon: GalleryHorizontalEnd },
+   { href: '/donations', label: 'Donations', icon: WalletCards },
+-  { href: '/teacher-bookings', label: 'Teacher bookings', icon: Users },
+   { href: '/notifications', label: 'Notifications', icon: Megaphone },
+   { href: '/documents', label: 'Documents', icon: FileCheck2 },
+   { href: '/audit-logs', label: 'Audit logs', icon: Activity },
+@@ -397,7 +385,7 @@ function Modal({ title, onClose, children, fullscreenOnMobile = false }: { title
+           <h2 className="font-display text-2xl font-semibold">{title}</h2>
+           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Close dialog"><X size={18} /></button>
+         </div>
+-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5">{children}</div>
++        <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
+       </div>
+     </div>
+   );
+@@ -554,11 +542,11 @@ function MasjidEvidenceManager({ masjidId, adminId }: { masjidId: string; adminI
+           const marker = '/storage/v1/object/public/public-masjid-media/';
+           if (existing.file_url.includes(marker)) await deletePublicMedia('public-masjid-media', decodeURIComponent(existing.file_url.split(marker)[1])).catch(() => undefined);
+         }
+-        const result = await supabase.from('masjid_documents').update({ document_type: type, file_url: isPrivate ? uploaded.path : uploaded, is_private: isPrivate }).eq('id', existing.id).select('id').single();
++        const result = await supabase.from('masjid_documents').update({ document_type: type, file_url: isPrivate ? uploaded.path : uploaded.url, is_private: isPrivate }).eq('id', existing.id).select('id').single();
+         if (result.error) throw result.error;
+         await recordAudit(adminId, 'update', 'masjid_document', existing.id, { masjid_id: masjidId, document_type: type, private: isPrivate });
+       } else {
+-        const result = await supabase.from('masjid_documents').insert({ masjid_id: masjidId, document_type: type, file_url: isPrivate ? uploaded.path : uploaded, is_private: isPrivate }).select('id').single();
++        const result = await supabase.from('masjid_documents').insert({ masjid_id: masjidId, document_type: type, file_url: isPrivate ? uploaded.path : uploaded.url, is_private: isPrivate }).select('id').single();
+         if (result.error) throw result.error;
+         await recordAudit(adminId, 'upload', 'masjid_document', result.data.id, { masjid_id: masjidId, document_type: type, private: isPrivate });
+       }
+@@ -672,7 +660,7 @@ function MasjidForm({ initial, categories, onDone, onCancel, adminId }: { initia
+       onDone();
+     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save Masjid.'); } finally { setBusy(false); }
+   };
+-  return <form onSubmit={submit} className="space-y-3">{error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}<div className="grid gap-4 sm:grid-cols-2"><Input label="Name" value={form.name} onChange={(value) => setForm({ ...form, name: value })} required /><Input label="Location" value={form.location} onChange={(value) => setForm({ ...form, location: value })} required /><Input label="City" value={form.city} onChange={(value) => setForm({ ...form, city: value })} required /><Input label="Fundraising target" value={form.target_amount} onChange={(value) => setForm({ ...form, target_amount: value })} type="number" min="0" step="0.01" /><Select label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value as Masjid['status'] })} options={[{ value: 'active', label: 'Active' }, { value: 'completed', label: 'Completed' }, { value: 'hidden', label: 'Hidden' }]} /><Select label="Category" value={form.category_id} onChange={(value) => setForm({ ...form, category_id: value })} options={[{ value: '', label: 'No category' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /></div><Textarea label="Description" value={form.description} onChange={(value) => setForm({ ...form, description: value })} /><div className="grid gap-4 sm:grid-cols-2"><Input label="Image URL (optional)" value={form.image_url} onChange={(value) => setForm({ ...form, image_url: value })} /><label className="block text-xs font-semibold">Upload cover image<input type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="mt-2 block w-full text-xs font-normal" /></label></div><div className="grid gap-2 sm:grid-cols-3"><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><Toggle label="Urgent" checked={form.is_urgent} onChange={(checked) => setForm({ ...form, is_urgent: checked })} /><Toggle label="Featured" checked={form.is_featured} onChange={(checked) => setForm({ ...form, is_featured: checked })} /></div>{initial?.id && <MasjidEvidenceManager masjidId={initial.id} adminId={adminId} />}<FormActions busy={busy} onCancel={onCancel} /></form>;
++  return <form onSubmit={submit} className="space-y-4">{error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}<div className="grid gap-4 sm:grid-cols-2"><Input label="Name" value={form.name} onChange={(value) => setForm({ ...form, name: value })} required /><Input label="Location" value={form.location} onChange={(value) => setForm({ ...form, location: value })} required /><Input label="City" value={form.city} onChange={(value) => setForm({ ...form, city: value })} required /><Input label="Fundraising target" value={form.target_amount} onChange={(value) => setForm({ ...form, target_amount: value })} type="number" min="0" step="0.01" /><Select label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value as Masjid['status'] })} options={[{ value: 'active', label: 'Active' }, { value: 'completed', label: 'Completed' }, { value: 'hidden', label: 'Hidden' }]} /><Select label="Category" value={form.category_id} onChange={(value) => setForm({ ...form, category_id: value })} options={[{ value: '', label: 'No category' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /></div><Textarea label="Description" value={form.description} onChange={(value) => setForm({ ...form, description: value })} /><div className="grid gap-4 sm:grid-cols-2"><Input label="Image URL (optional)" value={form.image_url} onChange={(value) => setForm({ ...form, image_url: value })} /><label className="block text-xs font-semibold">Upload cover image<input type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="mt-2 block w-full text-xs font-normal" /></label></div><div className="grid gap-2 sm:grid-cols-3"><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><Toggle label="Urgent" checked={form.is_urgent} onChange={(checked) => setForm({ ...form, is_urgent: checked })} /><Toggle label="Featured" checked={form.is_featured} onChange={(checked) => setForm({ ...form, is_featured: checked })} /></div>{initial?.id && <MasjidEvidenceManager masjidId={initial.id} adminId={adminId} />}<FormActions busy={busy} onCancel={onCancel} /></form>;
+ }
+ 
+ function MasjidsPage() {
+@@ -982,7 +970,7 @@ function ProjectForm({ initial, categories, masjids, onDone, onCancel, adminId }
+       onDone();
+     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to save project.'); } finally { setBusy(false); }
+   };
+-  return <form onSubmit={submit} className="space-y-3">{error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}<div className="grid gap-3 sm:grid-cols-2"><Input label="Title" value={form.title} onChange={(value) => setForm({ ...form, title: value })} required /><Select label="Masjid" value={form.masjid_id} onChange={(value) => setForm({ ...form, masjid_id: value })} options={masjids.map((masjid) => ({ value: masjid.id, label: masjid.name }))} /><Select label="Category" value={form.category_id} onChange={(value) => setForm({ ...form, category_id: value })} options={[{ value: '', label: 'No category' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><Select label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value as Project['status'] })} options={[{ value: 'draft', label: 'Draft' }, { value: 'ongoing', label: 'Ongoing' }, { value: 'completed', label: 'Completed' }, { value: 'hidden', label: 'Hidden' }]} /><Input label="Target amount" value={form.target_amount} onChange={(value) => setForm({ ...form, target_amount: value })} type="number" min="0" step="0.01" /><Input label="Raised amount (verified only)" value={form.raised_amount} onChange={(value) => setForm({ ...form, raised_amount: value })} type="number" min="0" step="0.01" /><Input label="Total expense (verified only)" value={form.total_expense} onChange={(value) => setForm({ ...form, total_expense: value })} type="number" min="0" step="0.01" /></div><Textarea label="Short description" value={form.short_description} onChange={(value) => setForm({ ...form, short_description: value })} /><Textarea label="Full description / work completed" value={form.full_description} onChange={(value) => setForm({ ...form, full_description: value })} rows={5} /><div className="grid gap-2 sm:grid-cols-2"><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><Toggle label="Featured" checked={form.featured} onChange={(checked) => setForm({ ...form, featured: checked })} /></div>{initial?.id && <><ProjectMediaManager projectId={initial.id} adminId={adminId} /><ProjectEvidenceManager projectId={initial.id} adminId={adminId} /></>}<FormActions busy={busy} onCancel={onCancel} /></form>;
++  return <form onSubmit={submit} className="space-y-4">{error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}<div className="grid gap-4 sm:grid-cols-2"><Input label="Title" value={form.title} onChange={(value) => setForm({ ...form, title: value })} required /><Select label="Masjid" value={form.masjid_id} onChange={(value) => setForm({ ...form, masjid_id: value })} options={masjids.map((masjid) => ({ value: masjid.id, label: masjid.name }))} /><Select label="Category" value={form.category_id} onChange={(value) => setForm({ ...form, category_id: value })} options={[{ value: '', label: 'No category' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><Select label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value as Project['status'] })} options={[{ value: 'draft', label: 'Draft' }, { value: 'ongoing', label: 'Ongoing' }, { value: 'completed', label: 'Completed' }, { value: 'hidden', label: 'Hidden' }]} /><Input label="Target amount" value={form.target_amount} onChange={(value) => setForm({ ...form, target_amount: value })} type="number" min="0" step="0.01" /><Input label="Raised amount (verified only)" value={form.raised_amount} onChange={(value) => setForm({ ...form, raised_amount: value })} type="number" min="0" step="0.01" /><Input label="Total expense (verified only)" value={form.total_expense} onChange={(value) => setForm({ ...form, total_expense: value })} type="number" min="0" step="0.01" /></div><Textarea label="Short description" value={form.short_description} onChange={(value) => setForm({ ...form, short_description: value })} /><Textarea label="Full description / work completed" value={form.full_description} onChange={(value) => setForm({ ...form, full_description: value })} rows={5} /><div className="grid gap-2 sm:grid-cols-2"><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><Toggle label="Featured" checked={form.featured} onChange={(checked) => setForm({ ...form, featured: checked })} /></div>{initial?.id && <><ProjectMediaManager projectId={initial.id} adminId={adminId} /><ProjectEvidenceManager projectId={initial.id} adminId={adminId} /></>}<FormActions busy={busy} onCancel={onCancel} /></form>;
+ }
+ 
+ function ProjectsPage() {
+@@ -1008,29 +996,9 @@ function CategoriesPage() {
+   const [description, setDescription] = useState('');
+   const [published, setPublished] = useState(true);
+   const [sortOrder, setSortOrder] = useState('0');
+-  const [saving, setSaving] = useState(false);
+-  const [formError, setFormError] = useState('');
+-  const open = (category: Category | 'new') => { setFormError(''); setEditing(category); setName(category === 'new' ? '' : category.name); setDescription(category === 'new' ? '' : category.description ?? ''); setPublished(category === 'new' ? true : category.published); setSortOrder(category === 'new' ? '0' : String(category.sort_order)); };
+-  const save = async (event: FormEvent) => {
+-    event.preventDefault();
+-    if (!supabase || !editing) return;
+-    setSaving(true);
+-    setFormError('');
+-    try {
+-      const payload = { name: name.trim(), description: description.trim() || null, published, sort_order: Number(sortOrder) };
+-      const result = editing === 'new'
+-        ? await supabase.from('categories').insert(payload).select('id').single()
+-        : await supabase.from('categories').update(payload).eq('id', editing.id);
+-      if (result.error) throw result.error;
+-      setEditing(null);
+-      resource.reload();
+-    } catch (reason) {
+-      setFormError(reason instanceof Error ? reason.message : 'Unable to save category.');
+-    } finally {
+-      setSaving(false);
+-    }
+-  };
+-  return <div className="page-enter"><SectionHeading eyebrow="Content taxonomy" title="Categories" description="Manage the labels used to organize Masjids and projects." action={<Button onClick={() => open('new')}><Plus size={16} /> New category</Button>} /><QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="categories"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(resource.data ?? []).map((category) => <div key={category.id} className="rounded-xl border border-border bg-card p-5"><div className="flex items-start justify-between"><div><p className="font-display text-xl font-semibold">{category.name}</p><p className="mt-1 text-xs text-muted-foreground">Order {category.sort_order} · {category.published ? 'Published' : 'Hidden'}</p></div><button onClick={() => open(category)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><Pencil size={15} /></button></div><p className="mt-4 text-sm leading-relaxed text-muted-foreground">{category.description || 'No description.'}</p></div>)}</div></QueryState>{editing && <Modal title={editing === 'new' ? 'Create category' : 'Edit category'} onClose={() => setEditing(null)} fullscreenOnMobile><form onSubmit={save} className="space-y-3">{formError && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{formError}</div>}<Input label="Name" value={name} onChange={setName} required /><Textarea label="Description" value={description} onChange={setDescription} /><div className="grid gap-3 sm:grid-cols-2"><Input label="Sort order" value={sortOrder} onChange={setSortOrder} type="number" min="0" /><Toggle label="Published" checked={published} onChange={setPublished} /></div><FormActions busy={saving} onCancel={() => setEditing(null)} /></form></Modal>}</div>;
++  const open = (category: Category | 'new') => { setEditing(category); setName(category === 'new' ? '' : category.name); setDescription(category === 'new' ? '' : category.description ?? ''); setPublished(category === 'new' ? true : category.published); setSortOrder(category === 'new' ? '0' : String(category.sort_order)); };
++  const save = async (event: FormEvent) => { event.preventDefault(); if (!supabase || !editing) return; const payload = { name, description: description || null, published, sort_order: Number(sortOrder) }; const result = editing === 'new' ? await supabase.from('categories').insert(payload).select('id').single() : await supabase.from('categories').update(payload).eq('id', editing.id); if (!result.error) { setEditing(null); resource.reload(); } };
++  return <div className="page-enter"><SectionHeading eyebrow="Content taxonomy" title="Categories" description="Manage the labels used to organize Masjids and projects." action={<Button onClick={() => open('new')}><Plus size={16} /> New category</Button>} /><QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="categories"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(resource.data ?? []).map((category) => <div key={category.id} className="rounded-xl border border-border bg-card p-5"><div className="flex items-start justify-between"><div><p className="font-display text-xl font-semibold">{category.name}</p><p className="mt-1 text-xs text-muted-foreground">Order {category.sort_order} · {category.published ? 'Published' : 'Hidden'}</p></div><button onClick={() => open(category)} className="rounded-lg p-2 text-muted-foreground hover:bg-muted"><Pencil size={15} /></button></div><p className="mt-4 text-sm leading-relaxed text-muted-foreground">{category.description || 'No description.'}</p></div>)}</div></QueryState>{editing && <Modal title={editing === 'new' ? 'Create category' : 'Edit category'} onClose={() => setEditing(null)} fullscreenOnMobile><form onSubmit={save} className="space-y-4"><Input label="Name" value={name} onChange={setName} required /><Textarea label="Description" value={description} onChange={setDescription} /><div className="grid gap-4 sm:grid-cols-2"><Input label="Sort order" value={sortOrder} onChange={setSortOrder} type="number" min="0" /><Toggle label="Published" checked={published} onChange={setPublished} /></div><FormActions busy={false} onCancel={() => setEditing(null)} /></form></Modal>}</div>;
+ }
+ 
+ function SlideForm({ initial, onDone, onCancel, adminId }: { initial?: HomeSlide; onDone: () => void; onCancel: () => void; adminId: string }) {
+@@ -1038,7 +1006,7 @@ function SlideForm({ initial, onDone, onCancel, adminId }: { initial?: HomeSlide
+   const [file, setFile] = useState<File | null>(null);
+   const [busy, setBusy] = useState(false);
+   const submit = async (event: FormEvent) => { event.preventDefault(); if (!supabase) return; setBusy(true); try { let imageUrl = form.image_url || null; if (file) imageUrl = (await uploadPublicMedia('public-home-media', file, initial?.id ?? 'slides')).url; const payload = { title: form.title, subtitle: form.subtitle || null, image_url: imageUrl, action_type: form.action_type || null, action_id: form.action_id || null, sort_order: Number(form.sort_order), published: form.published }; const result = initial ? await supabase.from('home_slides').update(payload).eq('id', initial.id).select('id').single() : await supabase.from('home_slides').insert(payload).select('id').single(); if (result.error) throw result.error; await recordAudit(adminId, initial ? 'update' : 'create', 'home_slide', result.data?.id ?? initial?.id, { title: form.title, published: form.published }); onDone(); } finally { setBusy(false); } };
+-  return <form onSubmit={submit} className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><Input label="Title" value={form.title} onChange={(value) => setForm({ ...form, title: value })} required /><Input label="Subtitle" value={form.subtitle} onChange={(value) => setForm({ ...form, subtitle: value })} /><Input label="Action type" value={form.action_type} onChange={(value) => setForm({ ...form, action_type: value })} placeholder="project or masjid" /><Input label="Action target" value={form.action_id} onChange={(value) => setForm({ ...form, action_id: value })} /><Input label="Sort order" value={form.sort_order} onChange={(value) => setForm({ ...form, sort_order: value })} type="number" min="0" /><Input label="Image URL" value={form.image_url} onChange={(value) => setForm({ ...form, image_url: value })} /></div><label className="block text-xs font-semibold">Upload slide image<input type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="mt-2 block w-full text-xs font-normal" /></label><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><FormActions busy={busy} onCancel={onCancel} /></form>;
++  return <form onSubmit={submit} className="space-y-4"><div className="grid gap-4 sm:grid-cols-2"><Input label="Title" value={form.title} onChange={(value) => setForm({ ...form, title: value })} required /><Input label="Subtitle" value={form.subtitle} onChange={(value) => setForm({ ...form, subtitle: value })} /><Input label="Action type" value={form.action_type} onChange={(value) => setForm({ ...form, action_type: value })} placeholder="project or masjid" /><Input label="Action target" value={form.action_id} onChange={(value) => setForm({ ...form, action_id: value })} /><Input label="Sort order" value={form.sort_order} onChange={(value) => setForm({ ...form, sort_order: value })} type="number" min="0" /><Input label="Image URL" value={form.image_url} onChange={(value) => setForm({ ...form, image_url: value })} /></div><label className="block text-xs font-semibold">Upload slide image<input type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="mt-2 block w-full text-xs font-normal" /></label><Toggle label="Published" checked={form.published} onChange={(checked) => setForm({ ...form, published: checked })} /><FormActions busy={busy} onCancel={onCancel} /></form>;
+ }
+ 
+ function SlidesPage() {
+@@ -1067,48 +1035,6 @@ function ExpensesPage() {
+   return <div className="page-enter"><SectionHeading eyebrow="Financial transparency" title="Expenses" description="Record verified project expenses. Bills and supporting documents should remain private unless explicitly published." action={<Button onClick={() => setModal(true)}><Plus size={16} /> Add expense</Button>} /><QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="expenses"><div className="overflow-hidden rounded-xl border border-border bg-card"><div className="hidden grid-cols-[1fr_1fr_.7fr_.7fr] gap-4 border-b border-border bg-muted/50 px-5 py-3 font-mono-ui text-[10px] uppercase tracking-[0.14em] text-muted-foreground md:grid"><span>Expense</span><span>Project</span><span>Amount</span><span>Date</span></div>{(resource.data ?? []).map((expense) => <div key={expense.id} className="grid gap-3 border-b border-border px-5 py-4 last:border-0 md:grid-cols-[1fr_1fr_.7fr_.7fr] md:items-center md:gap-4"><div><p className="text-sm font-semibold">{expense.title}</p><p className="mt-1 text-xs text-muted-foreground">{expense.description || 'No description'}</p></div><p className="text-xs text-muted-foreground">{expense.project?.title ?? 'Unknown project'}</p><p className="font-mono-ui text-xs font-semibold">{formatMoney(expense.amount)}</p><p className="text-xs text-muted-foreground">{expense.expense_date || '—'}</p></div>)}</div></QueryState>{modal && <Modal title="Record verified expense" onClose={() => setModal(false)}><form onSubmit={save} className="space-y-4">{error && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}<Select label="Project" value={form.project_id} onChange={(value) => setForm({ ...form, project_id: value })} options={(projects.data ?? []).map((project) => ({ value: project.id, label: project.title }))} /><Input label="Title" value={form.title} onChange={(value) => setForm({ ...form, title: value })} required /><Input label="Amount" value={form.amount} onChange={(value) => setForm({ ...form, amount: value })} type="number" min="0" step="0.01" required /><Input label="Expense date" value={form.expense_date} onChange={(value) => setForm({ ...form, expense_date: value })} type="date" /><Textarea label="Description" value={form.description} onChange={(value) => setForm({ ...form, description: value })} /><FormActions busy={false} onCancel={() => setModal(false)} /></form></Modal>}</div>;
+ }
+ 
+-function TeacherBookingsPage() {
+-  const resource = useResource(() => selectRows<TeacherBooking>('teacher_bookings', 'id,name,address,teacher_name,qualification,status,admin_notes,created_at', 'created_at'), 'teacher-bookings');
+-  const [savingId, setSavingId] = useState('');
+-  const [error, setError] = useState('');
+-
+-  const updateStatus = async (booking: TeacherBooking, status: TeacherBooking['status']) => {
+-    if (!supabase) return;
+-    setSavingId(booking.id);
+-    setError('');
+-    try {
+-      const result = await supabase.from('teacher_bookings').update({ status, updated_at: new Date().toISOString() }).eq('id', booking.id);
+-      if (result.error) throw result.error;
+-      resource.reload();
+-    } catch (reason) {
+-      setError(reason instanceof Error ? reason.message : 'Unable to update booking status.');
+-    } finally {
+-      setSavingId('');
+-    }
+-  };
+-
+-  return <div className="page-enter">
+-    <SectionHeading eyebrow="Learning requests" title="Teacher bookings" description="Booking requests submitted from the Our Masjid app. Only authorized administrators can view these details." action={<Button onClick={resource.reload} variant="quiet"><RefreshCw size={15} /> Refresh</Button>} />
+-    {error && <div className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+-    <QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="teacher bookings">
+-      <div className="space-y-3">
+-        {(resource.data ?? []).map((booking) => <div key={booking.id} className="rounded-xl border border-border bg-card p-4 sm:p-5">
+-          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+-            <div className="min-w-0">
+-              <div className="flex flex-wrap items-center gap-2"><h3 className="text-base font-semibold">{booking.name}</h3><span className={cn('rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase', booking.status === 'new' ? 'bg-amber-100 text-amber-800' : booking.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-muted text-muted-foreground')}>{booking.status}</span></div>
+-              <p className="mt-1 text-xs text-muted-foreground">{booking.teacher_name} · {booking.qualification} · {formatDate(booking.created_at)}</p>
+-              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{booking.address}</p>
+-              {booking.admin_notes && <p className="mt-2 text-xs text-muted-foreground">Admin notes: {booking.admin_notes}</p>}
+-            </div>
+-            <div className="w-full sm:w-48"><Select label="Request status" value={booking.status} onChange={(value) => void updateStatus(booking, value as TeacherBooking['status'])} options={[{ value: 'new', label: 'New request' }, { value: 'contacted', label: 'Contacted' }, { value: 'completed', label: 'Completed' }, { value: 'cancelled', label: 'Cancelled' }]} />{savingId === booking.id && <p className="mt-1 text-[11px] text-muted-foreground">Saving…</p>}</div>
+-          </div>
+-        </div>)}
+-        {!resource.data?.length && <div className="rounded-xl border border-dashed border-border px-5 py-14 text-center"><Users className="mx-auto text-muted-foreground" size={25} /><p className="mt-3 text-sm font-semibold">No teacher bookings yet</p><p className="mt-1 text-xs text-muted-foreground">New requests from the mobile app will appear here.</p></div>}
+-      </div>
+-    </QueryState>
+-  </div>;
+-}
+-
+ function DocumentsPage() {
+   type DocumentRecord = {
+     id: string;
+@@ -1161,11 +1087,7 @@ function NotificationsPage() {
+   const tokens = useResource(() => selectRows<{ token: string; active: boolean }>('device_push_tokens', 'token,active', 'created_at'), 'push-tokens');
+   const [title, setTitle] = useState('');
+   const [body, setBody] = useState('');
+-  const [editing, setEditing] = useState<AppNotification | null>(null);
+-  const [editTitle, setEditTitle] = useState('');
+-  const [editBody, setEditBody] = useState('');
+   const [busy, setBusy] = useState(false);
+-  const [actionBusy, setActionBusy] = useState(false);
+   const [error, setError] = useState('');
+   const [success, setSuccess] = useState('');
+ 
+@@ -1180,108 +1102,27 @@ function NotificationsPage() {
+       const activeTokens = (tokens.data ?? []).filter((item) => item.active).map((item) => item.token);
+       let accepted = 0;
+       if (activeTokens.length) accepted = await sendExpoAnnouncement(title.trim(), body.trim(), activeTokens);
+-      setSuccess(activeTokens.length ? 'Announcement published. ' + accepted + ' device notifications accepted.' : 'Announcement published. No push-enabled devices are registered yet.');
++      setSuccess(activeTokens.length ? `Announcement published. ${accepted} device notifications accepted.` : 'Announcement published. No push-enabled devices are registered yet.');
+       setTitle(''); setBody(''); resource.reload();
+     } catch (reason) {
+       setError(reason instanceof Error ? reason.message : 'Unable to send announcement.');
+     } finally { setBusy(false); }
+   };
+ 
+-  const openEdit = (item: AppNotification) => {
+-    setEditing(item);
+-    setEditTitle(item.title);
+-    setEditBody(item.body);
+-    setError('');
+-    setSuccess('');
+-  };
+-
+-  const saveEdit = async (event: FormEvent) => {
+-    event.preventDefault();
+-    if (!supabase || !editing || !editTitle.trim() || !editBody.trim()) return;
+-    setActionBusy(true); setError(''); setSuccess('');
+-    try {
+-      const result = await supabase.from('notifications')
+-        .update({ title: editTitle.trim(), body: editBody.trim() })
+-        .eq('id', editing.id)
+-        .select('id')
+-        .single();
+-      if (result.error) throw result.error;
+-      await recordAudit(admin.id, 'update', 'notification', editing.id, { title: editTitle.trim() });
+-      setEditing(null);
+-      setSuccess('Announcement updated. No new push notification was sent.');
+-      resource.reload();
+-    } catch (reason) {
+-      setError(reason instanceof Error ? reason.message : 'Unable to update announcement.');
+-    } finally { setActionBusy(false); }
+-  };
+-
+-  const deleteNotification = async (item: AppNotification) => {
+-    if (!supabase) return;
+-    const confirmed = window.confirm('Delete this announcement from the app? This cannot be undone. Already-delivered phone notifications cannot be recalled.');
+-    if (!confirmed) return;
+-    setActionBusy(true); setError(''); setSuccess('');
+-    try {
+-      const result = await supabase.from('notifications').delete().eq('id', item.id).select('id').single();
+-      if (result.error) throw result.error;
+-      await recordAudit(admin.id, 'delete', 'notification', item.id, { title: item.title });
+-      if (editing?.id === item.id) setEditing(null);
+-      setSuccess('Announcement deleted from the database. The app list will refresh when it next fetches announcements.');
+-      resource.reload();
+-    } catch (reason) {
+-      setError(reason instanceof Error ? reason.message : 'Unable to delete announcement.');
+-    } finally { setActionBusy(false); }
+-  };
+-
+-  return <div className="page-enter">
+-    <SectionHeading eyebrow="Broadcast desk" title="Notifications" description="Publish announcements to registered devices and manage announcements shown inside the app." />
+-    {error && <div className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+-    {success && <div className="mb-4 rounded-lg bg-secondary p-3 text-sm text-primary">{success}</div>}
++  return <div className="page-enter"><SectionHeading eyebrow="Broadcast desk" title="Notifications" description="Publish an announcement once and deliver it to every registered device. The same announcement also appears inside the app." />
+     <div className="grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
+       <form onSubmit={send} className="rounded-xl border border-border bg-card p-5">
+         <p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-primary">New announcement</p>
+         <h3 className="mt-1 font-display text-xl font-semibold">Send to all users</h3>
+-        <div className="mt-5 space-y-4">
+-          <Input label="Title" value={title} onChange={setTitle} placeholder="Important update" required />
+-          <Textarea label="Message" value={body} onChange={setBody} rows={6} />
+-          <Button type="submit" disabled={busy}>{busy ? 'Sending…' : 'Publish & notify all users'}</Button>
+-        </div>
++        {error && <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
++        {success && <div className="mt-4 rounded-lg bg-secondary p-3 text-sm text-primary">{success}</div>}
++        <div className="mt-5 space-y-4"><Input label="Title" value={title} onChange={setTitle} placeholder="Important update" required /><Textarea label="Message" value={body} onChange={setBody} rows={6} /><Button type="submit" disabled={busy}>{busy ? 'Sending…' : 'Publish & notify all users'}</Button></div>
+       </form>
+       <div className="space-y-6">
+-        <div className="rounded-xl border border-border bg-primary p-5 text-primary-foreground">
+-          <Megaphone size={20} className="text-accent" />
+-          <p className="mt-4 font-display text-3xl font-semibold">{tokens.loading ? '—' : String((tokens.data ?? []).filter((item) => item.active).length)}</p>
+-          <p className="mt-1 text-sm text-primary-foreground/70">Active push-enabled devices</p>
+-          <p className="mt-4 text-xs leading-relaxed text-primary-foreground/65">Users who deny notification permission still receive announcements inside the app when they open the Notifications screen.</p>
+-        </div>
+-        <div className="rounded-xl border border-border bg-card p-5">
+-          <p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">All announcements</p>
+-          <QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="notifications">
+-            <div className="mt-4 space-y-3">
+-              {(resource.data ?? []).map((item) => <div key={item.id} className="rounded-lg bg-muted/40 p-3">
+-                <div className="flex items-start justify-between gap-3">
+-                  <div className="min-w-0"><p className="text-sm font-semibold">{item.title}</p><p className="mt-1 text-[10px] text-muted-foreground">{formatDate(item.created_at)}</p></div>
+-                  <div className="flex shrink-0 gap-2">
+-                    <button type="button" disabled={actionBusy} onClick={() => openEdit(item)} className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50">Edit</button>
+-                    <button type="button" disabled={actionBusy} onClick={() => void deleteNotification(item)} className="rounded-lg border border-destructive/30 px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50">Delete</button>
+-                  </div>
+-                </div>
+-                <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">{item.body}</p>
+-              </div>)}
+-              {!resource.data?.length && <p className="text-sm text-muted-foreground">No announcements yet.</p>}
+-            </div>
+-          </QueryState>
+-        </div>
++        <div className="rounded-xl border border-border bg-primary p-5 text-primary-foreground"><Megaphone size={20} className="text-accent" /><p className="mt-4 font-display text-3xl font-semibold">{tokens.loading ? '—' : String((tokens.data ?? []).filter((item) => item.active).length)}</p><p className="mt-1 text-sm text-primary-foreground/70">Active push-enabled devices</p><p className="mt-4 text-xs leading-relaxed text-primary-foreground/65">Users who deny notification permission still receive announcements inside the app when they open the Notifications screen.</p></div>
++        <div className="rounded-xl border border-border bg-card p-5"><p className="font-mono-ui text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Recent announcements</p><QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="notifications"><div className="mt-4 space-y-3">{(resource.data ?? []).slice(0, 8).map((item) => <div key={item.id} className="rounded-lg bg-muted/40 p-3"><div className="flex items-start justify-between gap-3"><p className="text-sm font-semibold">{item.title}</p><span className="text-[10px] text-muted-foreground">{formatDate(item.created_at)}</span></div><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.body}</p></div>)}{!resource.data?.length && <p className="text-sm text-muted-foreground">No announcements yet.</p>}</div></QueryState></div>
+       </div>
+     </div>
+-    {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+-      <form onSubmit={saveEdit} className="w-full max-w-lg space-y-4 rounded-xl border border-border bg-card p-5 shadow-xl">
+-        <div className="flex items-center justify-between gap-3"><h3 className="font-display text-xl font-semibold">Edit announcement</h3><button type="button" onClick={() => setEditing(null)} className="rounded-lg p-2 hover:bg-muted" aria-label="Close edit form"><X size={18} /></button></div>
+-        <p className="text-xs text-muted-foreground">Saving edits updates the in-app announcement only. It will not send another push notification.</p>
+-        <Input label="Title" value={editTitle} onChange={setEditTitle} required />
+-        <Textarea label="Message" value={editBody} onChange={setEditBody} rows={6} />
+-        <div className="flex justify-end gap-2"><Button type="button" variant="quiet" onClick={() => setEditing(null)} disabled={actionBusy}>Cancel</Button><Button type="submit" disabled={actionBusy}>{actionBusy ? 'Saving…' : 'Save changes'}</Button></div>
+-      </form>
+-    </div>}
+   </div>;
+ }
+ 
+@@ -1298,7 +1139,7 @@ function SettingsPage() {
+ }
+ 
+ function AppRouter() {
+-  return <Switch><Route path="/" component={Overview} /><Route path="/masjids" component={MasjidsPage} /><Route path="/projects" component={ProjectsPage} /><Route path="/categories" component={CategoriesPage} /><Route path="/slides" component={SlidesPage} /><Route path="/donations" component={DonationsPage} /><Route path="/teacher-bookings" component={TeacherBookingsPage} /><Route path="/notifications" component={NotificationsPage} /><Route path="/documents" component={DocumentsPage} /><Route path="/audit-logs" component={AuditLogsPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch>;
++  return <Switch><Route path="/" component={Overview} /><Route path="/masjids" component={MasjidsPage} /><Route path="/projects" component={ProjectsPage} /><Route path="/categories" component={CategoriesPage} /><Route path="/slides" component={SlidesPage} /><Route path="/donations" component={DonationsPage} /><Route path="/notifications" component={NotificationsPage} /><Route path="/documents" component={DocumentsPage} /><Route path="/audit-logs" component={AuditLogsPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch>;
+ }
+ 
+ function App() {

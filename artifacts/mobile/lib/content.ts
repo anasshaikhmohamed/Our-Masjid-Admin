@@ -68,7 +68,7 @@ function videoSources(rows: PublicProjectMediaRow[]) {
 function documentTitle(documentType: string) {
   if (documentType === 'qazi_permission') return 'Qazi-e-Shaher Permission Letter';
   if (documentType === 'support_letter') return 'Support Letter';
-  if (documentType === 'verification') return 'Verification Document';
+  if (documentType === 'verification') return 'Project Document';
   return 'Project Document';
 }
 
@@ -110,7 +110,7 @@ function toProject(
     videoUrls: videoSources(media),
     documents,
     expenses: projectExpenses,
-    masjidDocuments: masjidDocs.filter((doc) => doc.masjid_id === row.masjid_id).map((doc) => ({ id: doc.id, title: documentTitle(doc.document_type), url: doc.file_url, isPrivate: doc.is_private })),
+    masjidDocuments: masjidDocs.filter((doc) => doc.masjid_id === row.masjid_id && doc.document_type === 'qazi_permission').map((doc) => ({ id: doc.id, title: documentTitle(doc.document_type), url: doc.file_url, isPrivate: doc.is_private })),
     verification: 'Published by Our Masjid',
   };
 }
@@ -136,11 +136,11 @@ async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
     .order('created_at', { ascending: false });
   if (core.error) {
     if (__DEV__) console.warn('[Content] Unable to load published projects from Supabase:', core.error);
-    return (await readCachedProjects()) ?? { projects: localProjects, source: 'cache' };
+    return (await readCachedProjects()) ?? { projects: [], source: 'cache' };
   }
 
   const rows = (core.data ?? []) as CoreProjectRow[];
-  if (!rows.length) return (await readCachedProjects()) ?? { projects: localProjects, source: 'cache' };
+  if (!rows.length) return (await readCachedProjects()) ?? { projects: [], source: 'cache' };
 
   const projectIds = rows.map((row) => row.id);
   const masjidIds = [...new Set(rows.map((row) => row.masjid_id).filter(Boolean))];
@@ -184,7 +184,7 @@ async function fetchPublishedProjects(): Promise<PublishedProjectsResult> {
 }
 
 export function usePublishedProjects() {
-  const query = useQuery({ queryKey: ['our-masjid', 'published-projects'], queryFn: fetchPublishedProjects, staleTime: 60_000, retry: false, placeholderData: { projects: localProjects, source: 'cache' as ContentSource } });
+  const query = useQuery({ queryKey: ['our-masjid', 'published-projects'], queryFn: fetchPublishedProjects, staleTime: 60_000, retry: false });
   // Keep existing local content visible while the first online request is loading.
   // Once Supabase responds, its published data replaces this placeholder.
   return { ...query, data: query.data };
@@ -217,22 +217,21 @@ export function usePublishedHomeSlides() {
   const query = useQuery({
     queryKey: ['our-masjid', 'home-slides'],
     queryFn: async (): Promise<PublicSlideRow[]> => {
-      if (!supabase) { const cached = await readCachedHomeSlides(); return cached.length ? cached : FALLBACK_HOME_SLIDES; }
+      if (!supabase) { const cached = await readCachedHomeSlides(); return cached.length ? cached : []; }
       const { data, error } = await supabase.from('home_slides').select('id,title,subtitle,image_url,action_type,action_id').eq('published', true).order('sort_order', { ascending: true });
       if (error) {
         if (__DEV__) console.warn('[Content] Unable to load home slides from Supabase:', error);
         const cached = await readCachedHomeSlides();
-        return cached.length ? cached : FALLBACK_HOME_SLIDES;
+        return cached.length ? cached : [];
       }
       const slides = (data ?? []) as PublicSlideRow[];
       if (slides.length) { try { await AsyncStorage.setItem(HOME_SLIDES_CACHE_KEY, JSON.stringify(slides)); } catch { /* ignore */ } }
       if (slides.length) return slides;
       const cached = await readCachedHomeSlides();
-      return cached.length ? cached : FALLBACK_HOME_SLIDES;
+      return cached.length ? cached : [];
     },
     staleTime: 60_000,
     retry: false,
-    placeholderData: FALLBACK_HOME_SLIDES,
   });
   return { ...query, data: query.data };
 }

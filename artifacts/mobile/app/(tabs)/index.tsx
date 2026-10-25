@@ -27,7 +27,7 @@ export default function HomeScreen() {
     <View style={styles.screen}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 0 }}>
         <AppHeader
-          title="Every Masjid is verified"
+          title="Every Masjid is verified" titleStyle={{ fontFamily: 'Inter_600SemiBold' }}
           subtitle="See where every contribution goes."
           right={<Pressable onPress={() => router.push('/notifications')} style={styles.headerIcon}><Feather name="bell" size={17} color={colors.light.primary} />{unreadNotifications > 0 ? <View style={styles.notificationDot} /> : null}</Pressable>}
         />

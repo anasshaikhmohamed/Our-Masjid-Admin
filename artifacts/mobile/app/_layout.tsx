@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { InteractionManager } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -41,6 +42,7 @@ function RootLayoutNav() {
       <Stack.Screen name="otp" options={{ headerShown: false }} />
       <Stack.Screen name="name" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="teacher-booking" options={{ headerShown: false }} />
       <Stack.Screen name="masjid/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="work/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="donation" options={{ headerShown: false, presentation: 'modal' }} />
@@ -69,7 +71,7 @@ export default function RootLayout() {
   }, [fontsLoaded, fontError]);
 
   useEffect(() => {
-    void registerForPushNotifications();
+    InteractionManager.runAfterInteractions(() => { void registerForPushNotifications(); });
     const received = Notifications.addNotificationResponseReceivedListener(() => {
       router.push('/notifications');
     });
@@ -77,13 +79,15 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    verifySupabaseConnection()
-      .then((result) => {
-        if (__DEV__) {
-          console.info(`[Supabase] Connected (HTTP ${result.status})`);
-        }
-      })
-      .catch(() => undefined);
+    InteractionManager.runAfterInteractions(() => {
+      void verifySupabaseConnection()
+        .then((result) => {
+          if (__DEV__) {
+            console.info(`[Supabase] Connected (HTTP ${result.status})`);
+          }
+        })
+        .catch(() => undefined);
+    });
   }, []);
 
   if (!fontsLoaded && !fontError) return null;

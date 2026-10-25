@@ -17,18 +17,20 @@ import { FramedImage } from '@/components/FramedImage';
 
 export function AppHeader({
   title = 'Our Masjid',
+  titleStyle,
   subtitle,
   right,
 }: {
   title?: string;
   subtitle?: string;
   right?: React.ReactNode;
+  titleStyle?: any;
 }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
       <View>
-        <Text style={styles.brand}>{title}</Text>
+        <Text style={[styles.brand, titleStyle]}>{title}</Text>
         {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
       </View>
       {right}
@@ -240,7 +242,7 @@ export function ProjectCard({
               <Text style={styles.progressText}>{percentage}% funded</Text>
               {project.status === 'Completed' ? <Text style={styles.progressText}>Fully funded</Text> : <Text style={styles.progressText}>{formatINR(project.target - project.raised)} left</Text>}
             </View>
-            <View style={[styles.cardButton, isUrgent && styles.cardButtonUrgent]}><Text style={styles.cardButtonText}>View project</Text><Feather name="arrow-up-right" size={15} color="#FFFFFF" /></View>
+            <View style={[styles.cardButton, isUrgent && styles.cardButtonUrgent]}><Text style={styles.cardButtonText}>View Masjid</Text><Feather name="arrow-up-right" size={15} color="#FFFFFF" /></View>
           </>
         )}
       </View>
@@ -269,7 +271,7 @@ export function InfoRow({ icon, label, value }: { icon: keyof typeof MaterialCom
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  brand: { color: colors.light.primary, fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
+  brand: { color: colors.light.primary, fontSize: 22, fontFamily: 'Inter_500Medium', letterSpacing: -0.5 },
   headerSubtitle: { marginTop: 3, color: colors.light.mutedForeground, fontSize: 12 },
   sectionTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { color: colors.light.foreground, fontSize: 17, fontWeight: '600' },
