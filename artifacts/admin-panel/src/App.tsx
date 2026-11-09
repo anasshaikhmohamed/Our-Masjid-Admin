@@ -115,6 +115,16 @@ type HomeSlide = {
   published: boolean;
 };
 
+type OnboardingSlide = {
+  id: string;
+  title: string;
+  image_url: string;
+  sort_order: number;
+  published: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 type Donation = {
   id: string;
   amount: number | string;
@@ -161,6 +171,7 @@ const navItems = [
   { href: '/projects', label: 'Projects', icon: HeartHandshake },
   { href: '/categories', label: 'Categories', icon: SlidersHorizontal },
   { href: '/slides', label: 'Home slides', icon: GalleryHorizontalEnd },
+  { href: '/onboarding-slides', label: 'Onboarding slides', icon: GalleryHorizontalEnd },
   { href: '/donations', label: 'Donations', icon: WalletCards },
   { href: '/teacher-bookings', label: 'Teacher Bookings', icon: Users },
   { href: '/notifications', label: 'Notifications', icon: Megaphone },
@@ -1069,6 +1080,244 @@ function SlidesPage() {
   return <div className="page-enter"><SectionHeading eyebrow="Homepage CMS" title="Home slides" description="Control the published sequence shown on the mobile home experience." action={<Button onClick={() => setModal('new')}><Plus size={16} /> New slide</Button>} /><QueryState loading={resource.loading} error={resource.error} onRetry={resource.reload} label="slides"><div className="grid gap-5 lg:grid-cols-2">{(resource.data ?? []).map((slide, index) => <article key={slide.id} className="overflow-hidden rounded-xl border border-border bg-card"><div className="relative aspect-[2.25/1] overflow-hidden bg-primary">{slide.image_url ? <img src={slide.image_url} alt="" className="h-full w-full object-cover opacity-80" /> : <div className="flex h-full items-center justify-center text-primary-foreground/25"><GalleryHorizontalEnd size={65} strokeWidth={1} /></div>}<div className="absolute inset-0 bg-gradient-to-t from-[hsl(155_38%_12%/.82)] to-transparent" /><span className="absolute left-4 top-4 rounded-full bg-[hsl(42_30%_96%/.9)] px-2.5 py-1 font-mono-ui text-[10px] font-semibold text-primary">0{index + 1}</span><div className="absolute bottom-4 left-4 right-4 text-primary-foreground"><h3 className="font-display text-2xl font-semibold">{slide.title}</h3>{slide.subtitle && <p className="mt-1 line-clamp-1 text-sm opacity-80">{slide.subtitle}</p>}</div></div><div className="flex items-center justify-between px-4 py-3"><span className={cn('font-mono-ui text-[10px] uppercase tracking-wider', slide.published ? 'text-emerald-700' : 'text-muted-foreground')}>{slide.published ? 'Published' : 'Draft'}</span><button onClick={() => setModal(slide)} className="flex items-center gap-1 text-xs font-semibold text-primary"><Pencil size={14} /> Edit</button></div></article>)}</div></QueryState>{modal && <Modal title={modal === 'new' ? 'Create home slide' : `Edit ${modal.title}`} onClose={() => setModal(null)}><SlideForm initial={modal === 'new' ? undefined : modal} adminId={admin.id} onDone={() => { setModal(null); resource.reload(); }} onCancel={() => setModal(null)} /></Modal>}</div>;
 }
 
+function OnboardingSlideForm({
+  initial,
+  adminId,
+  onDone,
+  onCancel,
+}: {
+  initial?: OnboardingSlide;
+  adminId: string;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [imageUrl, setImageUrl] = useState(initial?.image_url ?? '');
+  const [sortOrder, setSortOrder] = useState(String(initial?.sort_order ?? 0));
+  const [published, setPublished] = useState(initial?.published ?? false);
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!supabase || busy) return;
+
+    setError('');
+    setBusy(true);
+
+    try {
+      if (!file && !imageUrl.trim()) {
+        throw new Error('Please upload an image or enter an image URL.');
+      }
+
+      const order = Number(sortOrder);
+      if (!Number.isSafeInteger(order) || order < 0) {
+        throw new Error('Sort order must be a non-negative whole number.');
+      }
+
+      let finalImageUrl = imageUrl.trim();
+
+      if (file) {
+        if (!file.type.startsWith('image/')) {
+          throw new Error('Please select an image file.');
+        }
+
+        const uploaded = await uploadPublicMedia(
+          'public-home-media',
+          file,
+          'onboarding'
+        );
+        finalImageUrl = uploaded.url;
+      }
+
+      const payload = {
+        title: title.trim(),
+        image_url: finalImageUrl,
+        sort_order: order,
+        published,
+        updated_at: new Date().toISOString(),
+      };
+
+      const result = initial
+        ? await supabase.from('onboarding_slides')
+            .update(payload).eq('id', initial.id).select('id').single()
+        : await supabase.from('onboarding_slides')
+            .insert(payload).select('id').single();
+
+      if (result.error) throw result.error;
+
+      await recordAudit(
+        adminId,
+        initial ? 'update' : 'create',
+        'onboarding_slide',
+        result.data.id,
+        { title: payload.title, published, sort_order: order }
+      );
+
+      onDone();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to save onboarding slide.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      {error && (
+        <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+      <Input label="Slide title (admin reference)" value={title} onChange={setTitle} />
+      <Input label="Image URL" value={imageUrl} onChange={setImageUrl} />
+      <label className="block text-xs font-semibold">
+        Upload slide image
+        <input
+          type="file"
+          accept="image/*"
+          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          className="mt-2 block w-full text-xs font-normal"
+        />
+      </label>
+      {(file || imageUrl) && (
+        <p className="text-xs text-muted-foreground">
+          {file ? 'Selected image: ' + file.name : 'Existing image URL is ready.'}
+        </p>
+      )}
+      <Input
+        label="Slide order"
+        value={sortOrder}
+        onChange={setSortOrder}
+        type="number"
+        min="0"
+        step="1"
+      />
+      <Toggle label="Published" checked={published} onChange={setPublished} />
+      <FormActions busy={busy} onCancel={onCancel} />
+    </form>
+  );
+}
+
+function OnboardingSlidesPage() {
+  const admin = useAdmin();
+  const [modal, setModal] = useState<'new' | OnboardingSlide | null>(null);
+  const resource = useResource(async () => {
+    if (!supabase) throw new Error('Supabase is not configured.');
+
+    const { data, error } = await supabase
+      .from('onboarding_slides')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return (data ?? []) as OnboardingSlide[];
+  }, 'onboarding-slides');
+
+  const [deleteError, setDeleteError] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const deleteSlide = async (slide: OnboardingSlide) => {
+    if (!supabase || deletingId) return;
+
+    if (!window.confirm('Delete this onboarding slide? This cannot be undone.')) return;
+
+    setDeleteError('');
+    setDeletingId(slide.id);
+
+    try {
+      const result = await supabase
+        .from('onboarding_slides')
+        .delete()
+        .eq('id', slide.id);
+
+      if (result.error) throw result.error;
+
+      await recordAudit(admin.id, 'delete', 'onboarding_slide', slide.id, {
+        title: slide.title,
+        sort_order: slide.sort_order,
+      });
+
+      resource.reload();
+    } catch (reason) {
+      setDeleteError(
+        reason instanceof Error ? reason.message : 'Unable to delete slide.'
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="page-enter">
+      <SectionHeading
+        eyebrow="Welcome screen CMS"
+        title="Onboarding slides"
+        description="Manage the welcome slides shown before Get Started. Separate from Home slides."
+        action={<Button onClick={() => setModal('new')}><Plus size={16} /> New slide</Button>}
+      />
+      {deleteError && (
+        <div role="alert" className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          {deleteError}
+        </div>
+      )}
+      <QueryState
+        loading={resource.loading}
+        error={resource.error}
+        onRetry={resource.reload}
+        label="onboarding slides"
+      >
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {(resource.data ?? []).map((slide, index) => (
+            <article key={slide.id} className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="aspect-[853/1080] bg-muted">
+                <img src={slide.image_url} alt={slide.title || `Slide ${index + 1}`} className="h-full w-full object-contain" />
+              </div>
+              <div className="p-4">
+                <p className="text-sm font-semibold">{slide.title || `Slide ${index + 1}`}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Order {slide.sort_order} · {slide.published ? 'Published' : 'Draft'}
+                </p>
+                <div className="mt-3 flex items-center gap-4">
+                  <button type="button" onClick={() => setModal(slide)} className="flex items-center gap-1 text-xs font-semibold text-primary"><Pencil size={14} /> Edit</button>
+                  <button
+                    type="button"
+                    onClick={() => void deleteSlide(slide)}
+                    disabled={deletingId !== null}
+                    className="text-xs font-semibold text-destructive disabled:opacity-50"
+                  >
+                    {deletingId === slide.id ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+        {!resource.data?.length && (
+          <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            No onboarding slides yet.
+          </p>
+        )}
+      </QueryState>
+      {modal && (
+        <Modal
+          title={modal === 'new' ? 'Create onboarding slide' : 'Edit onboarding slide'}
+          onClose={() => setModal(null)}
+        >
+          <OnboardingSlideForm
+            initial={modal === 'new' ? undefined : modal}
+            adminId={admin.id}
+            onDone={() => { setModal(null); resource.reload(); }}
+            onCancel={() => setModal(null)}
+          />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 function DonationsPage() {
   const resource = useResource(() => selectRows<Donation>('donation_intents', '*,masjid:masjids(name),project:projects(title)', 'created_at'), 'donations');
   const [filter, setFilter] = useState('all');
@@ -1562,7 +1811,7 @@ function SettingsPage() {
 
 function AppRouter() {
 
-  return <Switch><Route path="/" component={Overview} /><Route path="/masjids" component={MasjidsPage} /><Route path="/projects" component={ProjectsPage} /><Route path="/categories" component={CategoriesPage} /><Route path="/slides" component={SlidesPage} /><Route path="/donations" component={DonationsPage} /><Route path="/teacher-bookings" component={TeacherBookingsPage} /><Route path="/notifications" component={NotificationsPage} /><Route path="/documents" component={DocumentsPage} /><Route path="/audit-logs" component={AuditLogsPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={Overview} /><Route path="/masjids" component={MasjidsPage} /><Route path="/projects" component={ProjectsPage} /><Route path="/categories" component={CategoriesPage} /><Route path="/slides" component={SlidesPage} /><Route path="/onboarding-slides" component={OnboardingSlidesPage} /><Route path="/donations" component={DonationsPage} /><Route path="/teacher-bookings" component={TeacherBookingsPage} /><Route path="/notifications" component={NotificationsPage} /><Route path="/documents" component={DocumentsPage} /><Route path="/audit-logs" component={AuditLogsPage} /><Route path="/settings" component={SettingsPage} /><Route component={NotFound} /></Switch>;
 
 }
 
